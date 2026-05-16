@@ -143,35 +143,44 @@ function handleEvent(e) {
   const priceStr = e.price ? formatPriceKzt(e.price) : ''
   const title = e.bouquet_title ? `«${e.bouquet_title}»` : ''
 
+  // Все наши event'ы относятся к Сделкам — тап по тосту туда и ведёт.
+  const toDeals = () => { activeTab.value = 'deals' }
+
   switch (e.type) {
     case 'offer.created':
-      pushToast(`🌸 Новое предложение ${priceStr} за ${title}`, { kind: 'info' })
+      pushToast(`🌸 Новое предложение ${priceStr} за ${title}`, { kind: 'info', action: toDeals })
       break
     case 'offer.accepted':
-      pushToast(`✅ Ваше предложение ${priceStr} за ${title} принято! Контакты — в Сделках`, { kind: 'success', ttl: 6000 })
+      pushToast(`✅ Принято ${priceStr} за ${title}`, { kind: 'success', ttl: 6000, action: toDeals })
       break
     case 'offer.rejected':
-      pushToast(`❌ Отклонено: ${title}`, { kind: 'err' })
+      pushToast(`❌ Отклонено: ${title}`, { kind: 'err', action: toDeals })
       break
     case 'offer.countered':
-      pushToast(`🔄 Встречное ${priceStr} за ${title}`, { kind: 'warn' })
+      pushToast(`🔄 Встречное ${priceStr} за ${title}`, { kind: 'warn', action: toDeals })
       break
     case 'offer.cancelled':
-      pushToast(`⚠️ Сделка отменена: ${title}`, { kind: 'warn' })
+      pushToast(`⚠️ Сделка отменена: ${title}`, { kind: 'warn', action: toDeals })
       break
     case 'offer.expired':
-      pushToast(`Букет ${title} ушёл другому. Ваше ${priceStr} отменено`, { kind: 'err' })
+      pushToast(`Букет ${title} ушёл другому. Ваше ${priceStr} отменено`, { kind: 'err', action: toDeals })
       break
     default:
       return // unknown event — ignore
   }
-  // Рефрешим всё что открыто (cheap, polling и так умеет).
   gridRef.value?.refresh?.()
   dealsRef.value?.refresh?.()
   profileRef.value?.refresh?.()
 }
 
-useEventStream(handleEvent)
+// onConnect: после установки SSE рефрешим всё что открыто — лечит
+// init-race (между fetch'ем при mount и подпиской могло проскочить
+// событие, которое навсегда потеряно).
+useEventStream(handleEvent, () => {
+  gridRef.value?.refresh?.()
+  dealsRef.value?.refresh?.()
+  profileRef.value?.refresh?.()
+})
 </script>
 
 <template>

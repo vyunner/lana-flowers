@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { createBouquet } from '../api/bouquets'
 import { uploadPhoto } from '../api/upload'
+import { resizeImage } from '../utils/image'
 import BaseSheet from './base/BaseSheet.vue'
 
 // resetDelay должен совпадать с длительностью BaseSheet'овской slide-down
@@ -78,7 +79,10 @@ async function onFiles(e) {
     })
     photos.value.push(item)
     try {
-      const url = await uploadPhoto(file)
+      // Сжимаем перед upload'ом — айфон даёт 10MB-фото, бэк лимит 5MB.
+      // resizeImage возвращает оригинал если он уже маленький.
+      const resized = await resizeImage(file)
+      const url = await uploadPhoto(resized)
       item.url = url
       item.uploading = false
     } catch (err) {
@@ -94,6 +98,10 @@ function removePhoto(idx) {
 
 async function publish() {
   if (!canPublish.value) return
+  // ВАЖНО: submitting=true СНАЧАЛА, до любых async/await — иначе
+  // двойной тап на «Опубликовать» проскакивает оба раза и создаёт
+  // два дубля. canPublish.value завязан на submitting → второй тап
+  // мгновенно дисэйблится.
   submitting.value = true
   errorText.value = ''
   try {

@@ -29,3 +29,7 @@ export function parsePrice(str) {
   const n = parseInt(String(str).replace(/\D/g, ''), 10)
   return Number.isFinite(n) ? n : 0
 }
+
+/** Минимальная цена оффера. Меньше не имеет смысла предлагать (продавцу
+ *  не нужны 5-рублёвые офферы, и в спам-фильтр идёт). Согласовать с UI. */
+export const MIN_OFFER_PRICE = 100

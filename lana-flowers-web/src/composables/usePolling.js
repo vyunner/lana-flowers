@@ -1,4 +1,5 @@
 import { onBeforeUnmount, onMounted } from 'vue'
+import { sseConnected } from '../state/realtime'
 
 /**
  * Поллинг с паузой когда вкладка/мини-апп ушёл в фон.
@@ -24,6 +25,10 @@ export function usePolling(callback, intervalMs = 15000) {
 
   async function tick() {
     if (running) return
+    // Если SSE-стрим живой — апдейты прилетят мгновенно через push,
+    // дёргать REST каждые 60с впустую не имеет смысла. Когда SSE
+    // упадёт (connected → false) — polling сам возобновится.
+    if (sseConnected.value) return
     running = true
     try {
       await callback()

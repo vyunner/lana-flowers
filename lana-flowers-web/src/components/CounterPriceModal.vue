@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { formatPrice } from '../utils/format'
+import { formatPrice, MIN_OFFER_PRICE } from '../utils/format'
 import BaseModal from './base/BaseModal.vue'
 
 const props = defineProps({
@@ -27,11 +27,11 @@ watch(
 )
 
 function adjust(delta) {
-  value.value = Math.max(0, value.value + delta)
+  value.value = Math.max(MIN_OFFER_PRICE, value.value + delta)
 }
 
 const diff = computed(() => value.value - lastPrice.value)
-const canSubmit = computed(() => value.value > 0 && !submitting.value)
+const canSubmit = computed(() => value.value >= MIN_OFFER_PRICE && !submitting.value)
 
 async function confirm() {
   if (!canSubmit.value) return

@@ -1,4 +1,5 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { sseConnected } from '../state/realtime'
 
 // useEventStream — подписка на SSE-стрим бэка /events. EventSource в
 // браузере не даёт ставить custom headers, поэтому initData передаём
@@ -10,7 +11,12 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'https://64-226-107-161.nip.io'
 
-export function useEventStream(onEvent) {
+// onConnect — необязательный колбэк, вызывается КАЖДЫЙ раз когда SSE
+// поднялось (включая reconnect). Используется для re-fetch'а данных:
+// между fetch'ем при mount'е и подпиской на /events могло проскочить
+// событие, которое мы не успели поймать → стрим стартует с свежим
+// fetch'ем, и UI гарантированно консистентен.
+export function useEventStream(onEvent, onConnect) {
   const connected = ref(false)
   let es = null
   let retryAttempt = 0
@@ -34,7 +40,11 @@ export function useEventStream(onEvent) {
 
     es.addEventListener('ready', () => {
       connected.value = true
-      retryAttempt = 0 // успешный коннект сбрасывает backoff
+      sseConnected.value = true // глобально — для usePolling
+      retryAttempt = 0
+      if (typeof onConnect === 'function') {
+        try { onConnect() } catch {}
+      }
     })
 
     es.addEventListener('message', (msg) => {
@@ -46,10 +56,7 @@ export function useEventStream(onEvent) {
 
     es.addEventListener('error', () => {
       connected.value = false
-      // EventSource по spec'у переподключается сам, но WebView'ы Telegram
-      // иногда «висят» без auto-retry. Подстраховываемся: явный close +
-      // backoff. Если EventSource всё-таки в processing — close его остановит,
-      // не утечёт.
+      sseConnected.value = false // polling возобновится
       try { es?.close() } catch {}
       es = null
       scheduleRetry()
@@ -77,6 +84,7 @@ export function useEventStream(onEvent) {
       es = null
     }
     connected.value = false
+    sseConnected.value = false
   }
 
   onMounted(connect)

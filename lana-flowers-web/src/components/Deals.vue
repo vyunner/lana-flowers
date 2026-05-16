@@ -120,6 +120,24 @@ async function cancelDeal(offer) {
   }
 }
 
+// Покупатель забирает свой pending-оффер (передумал). Букет не трогаем,
+// продавец получит уведомление об отзыве — оффер не повисит в его inbox'е.
+async function withdrawOwn(offer) {
+  if (busyOfferId.value) return
+  const ok = await confirm(`Отозвать предложение ${formatPrice(offer.price)} ₸ за «${offer.bouquet.title}»?`)
+  if (!ok) return
+  busyOfferId.value = offer.id
+  try {
+    await respondOffer(offer.id, { action: 'withdraw' })
+    hapticNotify('warning')
+    await load()
+  } catch (e) {
+    await alert('Ошибка: ' + (e.message || e))
+  } finally {
+    busyOfferId.value = null
+  }
+}
+
 function showContact(offer) {
   haptic('light')
   contactCounterparty.value = offer.counterparty
@@ -213,6 +231,15 @@ function roleLabel(o) {
                 @click="reject(o)"
               >
                 Отклонить
+              </button>
+            </div>
+            <div v-else-if="o.status === 'pending' && o.role === 'buyer'" class="actions">
+              <button
+                class="act danger ghost"
+                :disabled="busyOfferId === o.id"
+                @click="withdrawOwn(o)"
+              >
+                Отозвать предложение
               </button>
             </div>
             <div v-else-if="o.status === 'accepted'" class="actions">

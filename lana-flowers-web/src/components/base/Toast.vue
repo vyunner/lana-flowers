@@ -7,9 +7,12 @@ import { haptic } from '../../telegram'
 // Telegram-шапка имеет 0 высоты внутри нашего viewport'а, поэтому
 // top: 8px + safe-area-inset-top рисует под ней.
 
-function onTap(id) {
+function onTap(t) {
   haptic('light')
-  dismissToast(id)
+  if (typeof t.action === 'function') {
+    try { t.action() } catch {}
+  }
+  dismissToast(t.id)
 }
 </script>
 
@@ -21,12 +24,13 @@ function onTap(id) {
           v-for="t in toasts"
           :key="t.id"
           class="toast"
-          :class="t.kind"
-          @click="onTap(t.id)"
+          :class="[t.kind, { actionable: !!t.action }]"
+          @click="onTap(t)"
           role="status"
           aria-live="polite"
         >
           {{ t.text }}
+          <span v-if="t.action" class="chev">›</span>
         </div>
       </TransitionGroup>
     </div>
@@ -69,6 +73,19 @@ function onTap(id) {
 .toast.err {
   background: #d6553f;
   color: #fff;
+}
+
+.toast.actionable {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.toast .chev {
+  font-size: 20px;
+  font-weight: 400;
+  opacity: 0.7;
+  flex-shrink: 0;
 }
 
 /* Анимации */

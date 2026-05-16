@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { updateMe } from '../api/users'
 import { uploadPhoto } from '../api/upload'
+import { resizeImage } from '../utils/image'
 import { haptic, hapticNotify } from '../telegram'
 import { me, setMe } from '../state/auth'
 import BaseSheet from './base/BaseSheet.vue'
@@ -50,7 +51,8 @@ async function onFile(e) {
   uploading.value = true
   errorText.value = ''
   try {
-    avatarUrl.value = await uploadPhoto(file)
+    const resized = await resizeImage(file)
+    avatarUrl.value = await uploadPhoto(resized)
   } catch (err) {
     errorText.value = err.message || 'Не удалось загрузить'
   } finally {

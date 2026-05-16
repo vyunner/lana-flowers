@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { createOffer } from '../api/offers'
-import { formatPrice, parsePrice } from '../utils/format'
+import { formatPrice, parsePrice, MIN_OFFER_PRICE } from '../utils/format'
 import BaseModal from './base/BaseModal.vue'
 import StatusState from './base/StatusState.vue'
 
@@ -37,10 +37,12 @@ watch(
 )
 
 function adjust(delta) {
-  value.value = Math.max(0, value.value + delta)
+  value.value = Math.max(MIN_OFFER_PRICE, value.value + delta)
 }
 
-const canSubmit = computed(() => value.value > 0 && !submitting.value)
+// Не даём отправить меньше MIN_OFFER_PRICE — кнопка дисэйблится,
+// внизу подпись объясняет почему.
+const canSubmit = computed(() => value.value >= MIN_OFFER_PRICE && !submitting.value)
 const diff = computed(() => value.value - sellerPrice.value)
 
 async function submit() {

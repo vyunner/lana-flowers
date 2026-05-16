@@ -2,6 +2,7 @@
 import { computed, ref, watch, onUnmounted } from 'vue'
 import { tg, haptic } from '../telegram'
 import { me } from '../state/auth'
+import { formatPriceKzt } from '../utils/format'
 
 const props = defineProps({
   open: { type: Boolean, required: true },
@@ -25,15 +26,31 @@ const isOwn = computed(
 )
 const myOffer = computed(() => props.bouquet?.my_offer || null)
 
-const priceDisplay = computed(() => {
-  const n = Number(props.bouquet?.price) || 0
-  return new Intl.NumberFormat('ru-RU').format(n) + ' ₸'
-})
+const priceDisplay = computed(() => formatPriceKzt(props.bouquet?.price))
 
 const myOfferDisplay = computed(() => {
   if (!myOffer.value) return ''
-  return new Intl.NumberFormat('ru-RU').format(Number(myOffer.value.price) || 0) + ' ₸'
+  return formatPriceKzt(myOffer.value.price)
 })
+
+// Шаринг через Telegram. tg.shareLink даёт нативный Telegram «forward
+// в чат». Минимальный вирусный канал — юзер пересылает букет другу.
+// Использует start_param чтобы получатель открыл мини-апп СРАЗУ на
+// нужном букете (через будущий ?bouquet=N deeplink, пока — простой URL).
+function shareBouquet() {
+  if (!props.bouquet) return
+  haptic('light')
+  const url = `https://lana-flowers.vercel.app/?bouquet=${props.bouquet.id}`
+  const text = `${title.value} — ${priceDisplay.value}`
+  if (tg && typeof tg.shareLink === 'function') {
+    tg.shareLink(url, text)
+  } else if (tg && typeof tg.openTelegramLink === 'function') {
+    const tgUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`
+    tg.openTelegramLink(tgUrl)
+  } else {
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, '_blank')
+  }
+}
 
 // ---- Карусель ----
 const scrollerRef = ref(null)
@@ -125,7 +142,15 @@ function makeOffer() {
         </div>
 
         <div class="content">
-          <div class="price">{{ priceDisplay }}</div>
+          <div class="price-row">
+            <div class="price">{{ priceDisplay }}</div>
+            <button class="share" type="button" @click="shareBouquet" aria-label="Поделиться">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v14"
+                  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
           <h1 class="title">{{ title }}</h1>
 
           <div v-if="city" class="meta">
@@ -253,13 +278,34 @@ function makeOffer() {
 .content {
   padding: 18px 18px 24px;
 }
+.price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
 .price {
   font-size: 26px;
   font-weight: 700;
   letter-spacing: -0.01em;
-  margin-bottom: 4px;
   font-variant-numeric: tabular-nums;
 }
+.share {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, transform 0.1s;
+}
+.share:active { transform: scale(0.95); background: var(--border); }
+.share svg { width: 18px; height: 18px; }
 .title {
   font-size: 19px;
   font-weight: 600;
