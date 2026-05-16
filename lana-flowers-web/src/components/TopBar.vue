@@ -39,13 +39,10 @@ defineEmits(['open-city', 'open-sell'])
 
 <style scoped>
 .topbar {
-  /* --tg-safe-top из telegram.js (отступ под шапкой Telegram), env() —
-     фолбэк для devices с notch. Снизу почти не паддим — следом идут чипсы
-     со своим верхним отступом, иначе воздух дублируется. */
-  padding-top: calc(max(var(--tg-safe-top, 0px), env(safe-area-inset-top, 0px)) + 22px);
-  padding-right: 16px;
-  padding-bottom: 4px;
-  padding-left: 16px;
+  /* Шапка Telegram физически НАД нашим вьюпортом, своего инсета внутри она
+     не съедает → safe-area math не нужна, давала перекос когда Telegram
+     начал репортить ненулевой contentSafeAreaInset. Просто базовый воздух. */
+  padding: 12px 16px 4px;
   display: flex;
   align-items: center;
   justify-content: space-between;
