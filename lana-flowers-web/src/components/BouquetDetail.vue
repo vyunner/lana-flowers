@@ -97,68 +97,66 @@ function makeOffer() {
 <template>
   <Teleport to="body">
     <div class="detail" :class="{ open }">
-      <!-- ===== Шапка с фотками ===== -->
-      <div class="gallery">
-        <div ref="scrollerRef" class="scroller" @scroll.passive="onScroll">
-          <div
-            v-for="(url, i) in photos"
-            :key="i"
-            class="slide"
-            :style="{ backgroundImage: `url(${url})` }"
-          ></div>
-          <div v-if="photos.length === 0" class="slide slide-empty"></div>
+      <!-- Единый вертикальный скролл: фотки + контент уезжают вверх вместе.
+           CTA снизу зафиксирован снаружи скролла. -->
+      <div class="scroll">
+        <!-- Карусель фото (горизонтальная). touch-action: pan-x — чтобы
+             вертикальные свайпы НЕ цеплялись за этот элемент, а уходили
+             в родительский вертикальный скролл. -->
+        <div class="gallery">
+          <div ref="scrollerRef" class="hslider" @scroll.passive="onScroll">
+            <div
+              v-for="(url, i) in photos"
+              :key="i"
+              class="slide"
+              :style="{ backgroundImage: `url(${url})` }"
+            ></div>
+            <div v-if="photos.length === 0" class="slide slide-empty"></div>
+          </div>
+
+          <div v-if="photos.length > 1" class="dots">
+            <span
+              v-for="(_, i) in photos"
+              :key="i"
+              class="dot"
+              :class="{ active: i === currentPhoto }"
+            ></span>
+          </div>
         </div>
 
-        <div v-if="photos.length > 1" class="dots">
-          <span
-            v-for="(_, i) in photos"
-            :key="i"
-            class="dot"
-            :class="{ active: i === currentPhoto }"
-          ></span>
-        </div>
+        <div class="content">
+          <div class="price">{{ priceDisplay }}</div>
+          <h1 class="title">{{ title }}</h1>
 
-        <!-- Закрыть — fallback на случай если Telegram BackButton недоступен -->
-        <button class="close-fab" type="button" @click="close" aria-label="Закрыть">
-          <svg viewBox="0 0 24 24" fill="none">
-            <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </button>
-      </div>
+          <div v-if="city" class="meta">
+            <svg class="pin" viewBox="0 0 24 24" fill="none">
+              <path d="M12 21s-7-6.5-7-12a7 7 0 1114 0c0 5.5-7 12-7 12z" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="12" cy="9.5" r="2.4" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+            {{ city }}
+          </div>
 
-      <!-- ===== Контент со скроллом ===== -->
-      <div class="body">
-        <div class="price">{{ priceDisplay }}</div>
-        <h1 class="title">{{ title }}</h1>
+          <div v-if="description" class="desc-block">
+            <div class="sec-title">Описание</div>
+            <p class="desc">{{ description }}</p>
+          </div>
 
-        <div v-if="city" class="meta">
-          <svg class="pin" viewBox="0 0 24 24" fill="none">
-            <path d="M12 21s-7-6.5-7-12a7 7 0 1114 0c0 5.5-7 12-7 12z" stroke="currentColor" stroke-width="1.5"/>
-            <circle cx="12" cy="9.5" r="2.4" stroke="currentColor" stroke-width="1.5"/>
-          </svg>
-          {{ city }}
-        </div>
-
-        <div v-if="description" class="desc-block">
-          <div class="sec-title">Описание</div>
-          <p class="desc">{{ description }}</p>
-        </div>
-
-        <div class="seller-block">
-          <div class="sec-title">Продавец</div>
-          <div class="seller">
-            <div class="ava" :class="{ 'is-placeholder': !sellerAvatar }">
-              <img v-if="sellerAvatar" :src="sellerAvatar" :alt="sellerName" />
-              <svg v-else viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-              </svg>
+          <div class="seller-block">
+            <div class="sec-title">Продавец</div>
+            <div class="seller">
+              <div class="ava" :class="{ 'is-placeholder': !sellerAvatar }">
+                <img v-if="sellerAvatar" :src="sellerAvatar" :alt="sellerName" />
+                <svg v-else viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                </svg>
+              </div>
+              <div class="sname">{{ sellerName }}</div>
             </div>
-            <div class="sname">{{ sellerName }}</div>
           </div>
         </div>
       </div>
 
-      <!-- ===== Sticky CTA ===== -->
+      <!-- Sticky CTA снаружи скролла -->
       <div class="cta-wrap">
         <div v-if="isOwn" class="cta own">Ваше объявление</div>
         <div v-else-if="myOffer" class="cta pending">
@@ -188,21 +186,32 @@ function makeOffer() {
   transform: translateX(0);
 }
 
+/* Один большой вертикальный скролл — фотки и контент уезжают вверх вместе.
+   overscroll-behavior:contain — внутренний bounce не закрывает Telegram. */
+.scroll {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* ===== Галерея ===== */
 .gallery {
   position: relative;
-  flex-shrink: 0;
   background: var(--photo-bg);
 }
-.scroller {
+.hslider {
   display: flex;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   aspect-ratio: 1 / 1;
+  /* Ловим ТОЛЬКО горизонтальные свайпы и pinch-zoom. Вертикальные —
+     пропускаем в родительский .scroll, иначе скролл вниз заедает на фотках. */
+  touch-action: pan-x pinch-zoom;
 }
-.scroller::-webkit-scrollbar { display: none; }
+.hslider::-webkit-scrollbar { display: none; }
 .slide {
   flex-shrink: 0;
   width: 100%;
@@ -220,7 +229,7 @@ function makeOffer() {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 12px;
+  bottom: 10px;
   display: flex;
   justify-content: center;
   gap: 6px;
@@ -240,29 +249,8 @@ function makeOffer() {
   border-radius: 3px;
 }
 
-.close-fab {
-  position: absolute;
-  top: calc(max(var(--tg-safe-top, 0px), env(safe-area-inset-top, 0px)) + 12px);
-  right: 14px;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.45);
-  color: #fff;
-  border: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-.close-fab svg { width: 18px; height: 18px; }
-
 /* ===== Контент ===== */
-.body {
-  flex: 1;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
+.content {
   padding: 18px 18px 24px;
 }
 .price {
