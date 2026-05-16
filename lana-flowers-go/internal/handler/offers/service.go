@@ -55,7 +55,6 @@ type OfferContext struct {
 	SellerName     string
 	SellerUsername string
 	Price          int64
-	Message        string
 	ParentID       sql.NullInt64
 	Status         string
 }
@@ -72,7 +71,7 @@ func loadContext(q querier, offerID int64, forUpdate bool) (*OfferContext, error
 	o := &OfferContext{ID: offerID}
 	var buyerLast, sellerLast string
 	sqlText := `
-		SELECT o.bouquet_id, o.buyer_id, o.seller_id, o.price, o.message, o.parent_id, o.status,
+		SELECT o.bouquet_id, o.buyer_id, o.seller_id, o.price, o.parent_id, o.status,
 		       b.title,
 		       COALESCE((b.photos)[1], '') AS bouquet_photo,
 		       bu.first_name, bu.last_name, bu.username,
@@ -87,7 +86,7 @@ func loadContext(q querier, offerID int64, forUpdate bool) (*OfferContext, error
 		sqlText += ` FOR UPDATE OF o`
 	}
 	err := q.QueryRow(sqlText, offerID).Scan(
-		&o.BouquetID, &o.BuyerID, &o.SellerID, &o.Price, &o.Message, &o.ParentID, &o.Status,
+		&o.BouquetID, &o.BuyerID, &o.SellerID, &o.Price, &o.ParentID, &o.Status,
 		&o.BouquetTitle,
 		&o.BouquetPhoto,
 		&o.BuyerName, &buyerLast, &o.BuyerUsername,
@@ -296,7 +295,7 @@ func RejectOffer(db *sql.DB, offerID int64, sellerID string) error {
 
 // CounterOffer — встречное предложение от продавца.
 // Возвращает ID нового оффера (где buyer/seller теперь поменяны местами — ход у изначального покупателя).
-func CounterOffer(db *sql.DB, offerID int64, sellerID string, newPrice int64, message string) (int64, error) {
+func CounterOffer(db *sql.DB, offerID int64, sellerID string, newPrice int64) (int64, error) {
 	if newPrice <= 0 {
 		return 0, ErrInvalidPrice
 	}
@@ -350,10 +349,10 @@ func CounterOffer(db *sql.DB, offerID int64, sellerID string, newPrice int64, me
 
 	var newID int64
 	if err := tx.QueryRow(`
-		INSERT INTO offers (bouquet_id, buyer_id, seller_id, price, message, parent_id)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO offers (bouquet_id, buyer_id, seller_id, price, parent_id)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id
-	`, ctx.BouquetID, ctx.SellerID, ctx.BuyerID, newPrice, message, offerID).Scan(&newID); err != nil {
+	`, ctx.BouquetID, ctx.SellerID, ctx.BuyerID, newPrice, offerID).Scan(&newID); err != nil {
 		return 0, err
 	}
 
@@ -370,7 +369,7 @@ func CounterOffer(db *sql.DB, offerID int64, sellerID string, newPrice int64, me
 // + явный re-check status'а на бэке после INSERT — это перебор. Для гонки
 // «букет архивировали ровно во время CreateOffer» — приемлемо иметь редкий
 // orphan pending, который чистится auto-expire при следующем accept.
-func CreateOffer(db *sql.DB, bouquetID int64, buyerID string, price int64, message string) (int64, *OfferContext, error) {
+func CreateOffer(db *sql.DB, bouquetID int64, buyerID string, price int64) (int64, *OfferContext, error) {
 	if price <= 0 {
 		return 0, nil, ErrInvalidPrice
 	}
@@ -405,10 +404,10 @@ func CreateOffer(db *sql.DB, bouquetID int64, buyerID string, price int64, messa
 
 	var id int64
 	err = db.QueryRow(`
-		INSERT INTO offers (bouquet_id, buyer_id, seller_id, price, message)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO offers (bouquet_id, buyer_id, seller_id, price)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id
-	`, bouquetID, buyerID, sellerID, price, message).Scan(&id)
+	`, bouquetID, buyerID, sellerID, price).Scan(&id)
 	if err != nil {
 		return 0, nil, err
 	}

@@ -13,13 +13,12 @@ import (
 )
 
 type createReq struct {
-	BouquetID int64  `json:"bouquet_id" binding:"required"`
-	Price     int64  `json:"price" binding:"required"`
-	Message   string `json:"message"`
+	BouquetID int64 `json:"bouquet_id" binding:"required"`
+	Price     int64 `json:"price" binding:"required"`
 }
 
 // Create — покупатель создаёт оффер на букет.
-//   POST /offers   { bouquet_id, price, message? }
+//   POST /offers   { bouquet_id, price }
 func Create(c *gin.Context, db *sql.DB) {
 	uidVal, ok := c.Get("user_id")
 	if !ok {
@@ -34,7 +33,7 @@ func Create(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	id, ctx, err := CreateOffer(db, req.BouquetID, buyerID, req.Price, req.Message)
+	id, ctx, err := CreateOffer(db, req.BouquetID, buyerID, req.Price)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrInvalidPrice):
@@ -60,7 +59,7 @@ func Create(c *gin.Context, db *sql.DB) {
 			ctx.SellerID,
 			ctx.ID, ctx.BouquetID, ctx.BouquetTitle, ctx.BouquetPhoto,
 			sellerPrice, ctx.Price,
-			ctx.BuyerName, ctx.Message,
+			ctx.BuyerName,
 		)
 		// In-app push продавцу — если у него сейчас открыт мини-апп.
 		events.Default().Publish(ctx.SellerID, events.Event{

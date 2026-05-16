@@ -13,9 +13,8 @@ import (
 )
 
 type respondReq struct {
-	Action  string `json:"action" binding:"required"` // accept | reject | counter | cancel | withdraw
-	Price   int64  `json:"price"`                     // обязательно для counter
-	Message string `json:"message"`
+	Action string `json:"action" binding:"required"` // accept | reject | counter | cancel | withdraw
+	Price  int64  `json:"price"`                     // обязательно для counter
 }
 
 // Respond — продавец отвечает на оффер: принять / отклонить / встречно / отменить-сделку.
@@ -77,7 +76,7 @@ func Respond(c *gin.Context, db *sql.DB) {
 		response.OK(c, gin.H{"status": "rejected"})
 
 	case "counter":
-		newID, err := CounterOffer(db, offerID, uid, req.Price, req.Message)
+		newID, err := CounterOffer(db, offerID, uid, req.Price)
 		if err != nil {
 			serviceErr(c, err)
 			return
@@ -85,7 +84,7 @@ func Respond(c *gin.Context, db *sql.DB) {
 		go telegram.NotifyOfferCountered(
 			ctx.BuyerID, newID, ctx.BouquetID, ctx.BouquetTitle, ctx.BouquetPhoto,
 			ctx.Price, req.Price,
-			ctx.SellerName, req.Message,
+			ctx.SellerName,
 		)
 		// SSE — старому покупателю (он теперь responder на новый pending)
 		events.Default().Publish(ctx.BuyerID, events.Event{

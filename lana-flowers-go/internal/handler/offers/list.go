@@ -12,14 +12,13 @@ import (
 // OfferRich — оффер со всем что нужно для UI «Сделок»:
 // данные букета, контрагента и (только для принятых) — телефон контрагента.
 type OfferRich struct {
-	ID          int64        `json:"id"`
-	BouquetID   int64        `json:"bouquet_id"`
-	Bouquet     BouquetMini  `json:"bouquet"`
-	BuyerID     string       `json:"buyer_id"`
-	SellerID    string       `json:"seller_id"`
-	Price       int64        `json:"price"`
-	Message     string       `json:"message"`
-	Status      string       `json:"status"`
+	ID          int64       `json:"id"`
+	BouquetID   int64       `json:"bouquet_id"`
+	Bouquet     BouquetMini `json:"bouquet"`
+	BuyerID     string      `json:"buyer_id"`
+	SellerID    string      `json:"seller_id"`
+	Price       int64       `json:"price"`
+	Status      string      `json:"status"`
 	ParentID    *int64       `json:"parent_id,omitempty"`
 	CreatedAt   string       `json:"created_at"`
 	RespondedAt string       `json:"responded_at,omitempty"`
@@ -80,7 +79,7 @@ func listOffers(c *gin.Context, db *sql.DB, role string) {
 	// JOIN'им букет (для title/photo) и контрагента (имя/аватар/телефон).
 	// Phone отдаём ТОЛЬКО если status='accepted' — иначе пустая строка.
 	q := `
-		SELECT o.id, o.bouquet_id, o.buyer_id, o.seller_id, o.price, o.message,
+		SELECT o.id, o.bouquet_id, o.buyer_id, o.seller_id, o.price,
 		       o.status, o.parent_id, o.created_at,
 		       COALESCE(o.responded_at::text, ''),
 		       b.title, b.price,
@@ -113,7 +112,7 @@ func listOffers(c *gin.Context, db *sql.DB, role string) {
 		var o OfferRich
 		var parent sql.NullInt64
 		if err := rows.Scan(
-			&o.ID, &o.BouquetID, &o.BuyerID, &o.SellerID, &o.Price, &o.Message,
+			&o.ID, &o.BouquetID, &o.BuyerID, &o.SellerID, &o.Price,
 			&o.Status, &parent, &o.CreatedAt, &o.RespondedAt,
 			&o.Bouquet.Title, &o.Bouquet.Price, &o.Bouquet.Photo,
 			&o.Counterparty.UserID, &o.Counterparty.Name, &o.Counterparty.AvatarURL,

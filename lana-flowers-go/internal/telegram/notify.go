@@ -41,7 +41,7 @@ func formatPrice(n int64) string {
 //
 // bouquetPhoto — URL первой картинки. Если пустой, шлём просто текст;
 // иначе картинка с caption (так выглядит как нормальная карточка маркетплейса).
-func NotifyNewOffer(sellerTGID string, offerID, bouquetID int64, bouquetTitle, bouquetPhoto string, sellerPrice, offerPrice int64, buyerName, message string) {
+func NotifyNewOffer(sellerTGID string, offerID, bouquetID int64, bouquetTitle, bouquetPhoto string, sellerPrice, offerPrice int64, buyerName string) {
 	defer trackEnd(trackStart())
 	chatID, err := strconv.ParseInt(sellerTGID, 10, 64)
 	if err != nil {
@@ -61,9 +61,6 @@ func NotifyNewOffer(sellerTGID string, offerID, bouquetID int64, bouquetTitle, b
 	)
 	if buyerName != "" {
 		text += "\nОт: " + escapeHTML(buyerName)
-	}
-	if message != "" {
-		text += "\n<i>«" + escapeHTML(message) + "»</i>"
 	}
 
 	markup := &InlineKeyboardMarkup{
@@ -235,7 +232,7 @@ func NotifyOfferRejected(buyerTGID string, bouquetTitle string, offeredPrice int
 // NotifyOfferCountered — продавец дал встречную цену. Покупатель решает: принять / отклонить / встречно.
 //
 // @username продавца не показываем — приватные данные.
-func NotifyOfferCountered(buyerTGID string, newOfferID, bouquetID int64, bouquetTitle, bouquetPhoto string, oldPrice, newPrice int64, sellerName, message string) {
+func NotifyOfferCountered(buyerTGID string, newOfferID, bouquetID int64, bouquetTitle, bouquetPhoto string, oldPrice, newPrice int64, sellerName string) {
 	defer trackEnd(trackStart())
 	chatID, err := strconv.ParseInt(buyerTGID, 10, 64)
 	if err != nil {
@@ -251,9 +248,6 @@ func NotifyOfferCountered(buyerTGID string, newOfferID, bouquetID int64, bouquet
 	)
 	if sellerName != "" {
 		text += "\nОт: " + escapeHTML(sellerName)
-	}
-	if message != "" {
-		text += "\n<i>«" + escapeHTML(message) + "»</i>"
 	}
 
 	markup := &InlineKeyboardMarkup{

@@ -1,16 +1,16 @@
 import { api } from './client'
 
-export function createOffer({ bouquetId, price, message }) {
+export function createOffer({ bouquetId, price }) {
   return api('/offers', {
     method: 'POST',
-    body: { bouquet_id: bouquetId, price, message: message || '' },
+    body: { bouquet_id: bouquetId, price },
   })
 }
 
-export function respondOffer(offerId, { action, price, message }) {
+export function respondOffer(offerId, { action, price }) {
   return api('/offers/' + offerId + '/respond', {
     method: 'POST',
-    body: { action, price, message: message || '' },
+    body: { action, price },
   })
 }
 
