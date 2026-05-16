@@ -128,8 +128,9 @@ func Respond(c *gin.Context, db *sql.DB) {
 			BouquetTitle: wCtx.BouquetTitle, Price: wCtx.Price,
 		})
 		// В Telegram-DM продавцу тоже летим — иначе он не узнает, увидит
-		// «пустоту» в inbox'е без объяснений.
-		go telegram.NotifyDealCancelled(wCtx.SellerID, wCtx.BouquetTitle, wCtx.Price, true)
+		// «пустоту» в inbox'е без объяснений. Используем именно Withdrawn,
+		// а не DealCancelled: сделки не было, букет с продажи не уходил.
+		go telegram.NotifyOfferWithdrawn(wCtx.SellerID, wCtx.BouquetTitle, wCtx.Price)
 		response.OK(c, gin.H{"status": "withdrawn"})
 
 	default:

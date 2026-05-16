@@ -166,6 +166,28 @@ func NotifyDealCancelled(toTGID string, bouquetTitle string, finalPrice int64, i
 	}
 }
 
+// NotifyOfferWithdrawn — продавцу, что покупатель отозвал своё pending-предложение
+// до того, как продавец на него ответил. Сделки не было, букет с продажи не уходил —
+// поэтому формулировка отличается от NotifyDealCancelled («снова в продаже» врало бы).
+func NotifyOfferWithdrawn(sellerTGID string, bouquetTitle string, offeredPrice int64) {
+	defer trackEnd(trackStart())
+	chatID, err := strconv.ParseInt(sellerTGID, 10, 64)
+	if err != nil {
+		return
+	}
+	text := fmt.Sprintf(
+		"↩️ Покупатель отозвал предложение <b>%s</b> (%s ₸).",
+		escapeHTML(bouquetTitle), formatPrice(offeredPrice),
+	)
+	if _, err := SendMessage(SendMessageReq{
+		ChatID:    chatID,
+		Text:      text,
+		ParseMode: "HTML",
+	}); err != nil {
+		log.Printf("notify OfferWithdrawn chat=%d: %v", chatID, err)
+	}
+}
+
 // NotifyOfferExpired — покупателю что его pending-оффер заэкспайрился,
 // потому что продавец принял другое предложение на тот же букет.
 func NotifyOfferExpired(buyerTGID, bouquetTitle string, offerPrice int64) {
