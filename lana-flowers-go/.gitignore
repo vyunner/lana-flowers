@@ -1,0 +1,10 @@
+.idea/
+.vscode/
+.env
+# Скомпилированный бинарь — в гит не кладём, собирается локально/в CI.
+app
+app-linux
+app-*
+*.exe
+*.log
+.DS_Store

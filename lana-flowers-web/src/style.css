@@ -1,0 +1,125 @@
+/* =========================================================
+   Lana Flowers — global styles & design tokens
+   Light theme only — фотки букетов раскрываются на белом
+   ========================================================= */
+
+:root {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f5f5f5;
+  --border: #ebebeb;
+  --divider: #ecebe7;
+  --text: #111111;
+  --text-secondary: #6f6c66;
+  --text-muted: #9b988f;
+
+  --primary: #111111;
+  --primary-text: #ffffff;
+  --secondary-bg: transparent;
+  --secondary-border: #e5e3df;
+  --secondary-text: #4a4944;
+
+  --nav-bg: #ffffff;
+  --nav-active-bg: #f5f5f5;
+  --nav-active-text: #111111;
+  --nav-inactive-text: #6b6b6b;
+
+  --photo-bg: #f0eee9;
+
+  --radius-card: 14px;
+  --radius-sheet: 16px;
+  --radius-button: 8px;
+  --radius-pill: 999px;
+
+  --shadow-nav:
+    0 1px 2px rgba(20, 18, 14, 0.04),
+    0 8px 24px rgba(20, 18, 14, 0.10),
+    0 18px 40px -8px rgba(20, 18, 14, 0.08);
+  --shadow-sheet: 0 -2px 24px rgba(0, 0, 0, 0.15);
+  --shadow-modal:
+    0 16px 40px rgba(0, 0, 0, 0.18),
+    0 4px 12px rgba(0, 0, 0, 0.08);
+
+  /* Brand accent — deep burgundy. Только для торга
+     (Предложить цену / Отправить предложение).
+     Чёрный — для общих действий: Продать, активный чип/таб. */
+  --accent: #7c2538;
+  --accent-hover: #631c2c;
+  --accent-text: #ffffff;
+  --accent-tint: #f8eaed;
+  --accent-tint-hover: #f0d6dd;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-size: 15px;
+  line-height: 1.4;
+  /* Mini App — не сайт. Запрещаем выделение/копирование и iOS-меню по long-press,
+     иначе на мобиле постоянно мешает при тапах. Инпуты разблокируются ниже. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Разрешаем выделение там, где юзер РЕАЛЬНО вводит текст:
+   название/описание букета, имя в профиле, цена в торге и т.п. */
+input,
+textarea,
+[contenteditable='true'] {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+#app {
+  /* --tg-vh выставляется в src/telegram.js при init и на viewportChanged.
+     Используем именно её, потому что 100dvh в Telegram WebApp включает
+     шапку Telegram и flex-centering промахивается по визуальному центру. */
+  height: var(--tg-vh, 100dvh);
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  /* В Telegram-теме каретка иногда подхватывает чужой цвет (часто белый).
+     Принудительно красим в основной текст приложения. */
+  caret-color: var(--text);
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+* {
+  scrollbar-width: none;
+}

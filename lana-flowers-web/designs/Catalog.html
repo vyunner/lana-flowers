@@ -1,0 +1,1447 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Lana Flowers · Каталог</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" />
+<style>
+  :root {
+    --ph-w: 390px;
+    --ph-h: 844px;
+    --radius-phone: 46px;
+    --radius-card: 14px;
+  }
+
+  *,
+  *::before,
+  *::after { box-sizing: border-box; }
+
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Manrope', system-ui, sans-serif;
+    background: #efece6;
+    background-image:
+      radial-gradient(1200px 600px at 20% -10%, #f6e6df 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 100%, #e6e7e1 0%, transparent 55%);
+    min-height: 100vh;
+    color: #1a1a1a;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .page {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 48px 32px 80px;
+  }
+
+  .page-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 36px;
+    gap: 24px;
+  }
+
+  .brand {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .brand h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 36px;
+    line-height: 1;
+    margin: 0;
+    letter-spacing: -0.02em;
+  }
+  .brand h1 em {
+    font-style: italic;
+    font-weight: 500;
+  }
+
+  .brand p {
+    margin: 0;
+    color: #6f6c66;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+  }
+
+  .legend {
+    display: flex;
+    gap: 8px;
+    font-size: 12px;
+    color: #6f6c66;
+  }
+  .legend .chip {
+    padding: 6px 10px;
+    background: #fff;
+    border: 1px solid #e3ddd2;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+  }
+  .legend .chip .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #f3e6dd;
+    border: 1px solid #d8c9bb;
+  }
+  .legend .chip.dark .dot {
+    background: #1a1a1a;
+    border-color: #000;
+  }
+
+  .stage {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    justify-items: center;
+  }
+
+  .frame-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+  .frame-label {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #8d8a83;
+    font-weight: 600;
+  }
+
+  /* Phone bezel */
+  .phone {
+    width: var(--ph-w);
+    height: var(--ph-h);
+    border-radius: var(--radius-phone);
+    background: #0d0d0e;
+    padding: 12px;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.5) inset,
+      0 30px 60px -20px rgba(40, 28, 16, 0.35),
+      0 12px 30px -15px rgba(0,0,0,0.25);
+    position: relative;
+  }
+
+  .screen {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: calc(var(--radius-phone) - 12px);
+    overflow: hidden;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Status bar */
+  .statusbar {
+    height: 44px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px 0 32px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    position: relative;
+    z-index: 3;
+  }
+  .statusbar .time {
+    padding-top: 4px;
+  }
+  .statusbar .icons {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-top: 4px;
+  }
+  .statusbar .icons svg { display: block; }
+  /* dynamic island */
+  .island {
+    position: absolute;
+    top: 11px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 122px;
+    height: 32px;
+    background: #000;
+    border-radius: 20px;
+    z-index: 4;
+  }
+
+  /* Header (city + sell button) */
+  .topbar {
+    padding: 6px 16px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .city {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: 0;
+    padding: 8px 4px;
+    font: inherit;
+    cursor: pointer;
+    color: inherit;
+  }
+  .city .pin {
+    width: 18px;
+    height: 18px;
+  }
+  .city .name {
+    font-weight: 700;
+    font-size: 17px;
+    letter-spacing: -0.01em;
+  }
+  .city .caret {
+    width: 14px;
+    height: 14px;
+    opacity: 0.55;
+  }
+
+  .sell-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #111;
+    color: #fff;
+    border: 0;
+    border-radius: 999px;
+    padding: 9px 14px 9px 12px;
+    font: inherit;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: -0.005em;
+    cursor: pointer;
+  }
+  .sell-btn .plus {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* Quick chips */
+  .chips {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 6px 16px 12px;
+    scrollbar-width: none;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip-item {
+    flex-shrink: 0;
+    font-size: 12.5px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid #e5e3df;
+    color: #4a4944;
+    font-weight: 500;
+    white-space: nowrap;
+    background: transparent;
+    cursor: pointer;
+    transition:
+      background-color 0.2s ease-in-out,
+      color 0.2s ease-in-out,
+      border-color 0.2s ease-in-out;
+  }
+  .chip-item.active {
+    background: #111;
+    color: #fff;
+    border-color: #111;
+  }
+
+  /* Feed */
+  .feed {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 16px 110px;
+    scrollbar-width: none;
+  }
+  .feed::-webkit-scrollbar { display: none; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .card {
+    background: #fff;
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    border: 1px solid #ecebe7;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .card .photo {
+    width: 100%;
+    aspect-ratio: 4 / 5;
+    background-color: #f0eee9;
+    background-size: cover;
+    background-position: center;
+  }
+
+  .card .body {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .price {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+  }
+
+  .name {
+    font-size: 14px;
+    font-weight: 400;
+    color: #807d76;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .divider {
+    height: 1px;
+    background: #ecebe7;
+    margin: 2px -12px 0;
+  }
+
+  .seller {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #807d76;
+    line-height: 1;
+  }
+  .seller .ava {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    flex-shrink: 0;
+  }
+  .seller .seller-name {
+    font-weight: 500;
+    color: inherit;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+  }
+  .seller .rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+    color: #807d76;
+  }
+  .seller .rating svg {
+    width: 11px;
+    height: 11px;
+  }
+
+  /* Floating pill bottom nav */
+  .navbar {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 12px;
+    height: 64px;
+    background: #fff;
+    border-radius: 999px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    align-items: stretch;
+    padding: 6px;
+    box-shadow:
+      0 1px 2px rgba(20, 18, 14, 0.04),
+      0 8px 24px rgba(20, 18, 14, 0.10),
+      0 18px 40px -8px rgba(20, 18, 14, 0.08);
+    z-index: 6;
+    transform-origin: 50% 100%;
+    transition:
+      transform 0.2s ease-out,
+      opacity 0.2s ease-out;
+  }
+  .navbar.collapsed {
+    transform: scale(0.92);
+    opacity: 0.95;
+  }
+
+  .nav-tab {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border-radius: 999px;
+    color: #6B6B6B;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.005em;
+    cursor: pointer;
+    transition:
+      color 0.2s ease-out,
+      font-weight 0.2s ease-out;
+  }
+  .nav-tab svg {
+    width: 24px;
+    height: 24px;
+    display: block;
+    flex-shrink: 0;
+  }
+  .nav-tab span {
+    display: block;
+    line-height: 1;
+  }
+  .nav-tab.active {
+    color: #111;
+    font-weight: 700;
+  }
+
+  /* Sliding active-tab indicator */
+  .nav-indicator {
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    left: 6px;
+    width: calc((100% - 12px) / 3);
+    background: #F5F5F5;
+    border-radius: 999px;
+    z-index: 0;
+    transition: transform 0.3s cubic-bezier(0.65, 0, 0.35, 1);
+    pointer-events: none;
+  }
+
+  /* Home indicator */
+  .home-indicator {
+    display: none;
+  }
+
+  /* =========== DARK THEME =========== */
+  .screen.dark {
+    background: #0e0e0f;
+    color: #f4f3ef;
+  }
+  .screen.dark .sell-btn {
+    background: #f4f3ef;
+    color: #0e0e0f;
+  }
+  .screen.dark .chip-item {
+    border-color: #2a2a2c;
+    color: #f4f3ef;
+    background: transparent;
+  }
+  .screen.dark .chip-item.active {
+    background: #ffffff;
+    color: #0e0e0f;
+    border-color: #ffffff;
+  }
+  .screen.dark .card {
+    background: #161618;
+    border-color: #232325;
+  }
+  .screen.dark .card .photo { background-color: #1d1d1f; }
+  .screen.dark .name,
+  .screen.dark .seller,
+  .screen.dark .seller .rating { color: #8c897f; }
+  .screen.dark .divider { background: #232325; }
+  .screen.dark .navbar {
+    background: #1A1A1A;
+    box-shadow:
+      0 1px 2px rgba(0,0,0,0.35),
+      0 10px 28px rgba(0,0,0,0.45),
+      0 22px 48px -8px rgba(0,0,0,0.35);
+  }
+  .screen.dark .nav-tab { color: #9B9B9B; }
+  .screen.dark .nav-tab.active { color: #fff; }
+  .screen.dark .nav-indicator { background: #2C2C2C; }
+
+  /* (no fade mask above the floating nav — keep the pill clean) */
+
+  /* ============ TAB PANES (Catalog / Messages / Profile) ============ */
+  .panes {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .pane {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease-out;
+  }
+  .pane.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* "Скоро" placeholder for messages / profile */
+  .placeholder {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding-bottom: 80px;
+    color: #9b988f;
+  }
+  .placeholder .ph-icon {
+    width: 48px;
+    height: 48px;
+    opacity: 0.55;
+  }
+  .placeholder .ph-text {
+    font-size: 17px;
+    font-weight: 600;
+    color: #4a4944;
+    letter-spacing: -0.005em;
+  }
+  .placeholder .ph-sub {
+    font-size: 13px;
+    color: #9b988f;
+  }
+  .screen.dark .placeholder { color: #6e6c67; }
+  .screen.dark .placeholder .ph-text { color: #d7d4cc; }
+
+  /* Crossfade grid when switching category */
+  .grid {
+    transition: opacity 0.25s ease-out;
+  }
+  .grid.fading {
+    opacity: 0;
+  }
+
+  /* Empty state inside grid */
+  .empty-state {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 80px 24px;
+    text-align: center;
+  }
+  .empty-state svg {
+    width: 48px;
+    height: 48px;
+    color: #c9c5bb;
+  }
+  .empty-state p {
+    margin: 0;
+    font-size: 14px;
+    color: #9b988f;
+    max-width: 220px;
+    line-height: 1.35;
+  }
+  .screen.dark .empty-state svg { color: #3a3a3c; }
+  .screen.dark .empty-state p { color: #6e6c67; }
+
+  /* ============ CITY BOTTOM SHEET ============ */
+  .city-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease-out;
+    z-index: 20;
+  }
+  .city-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .city-sheet {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 70%;
+    background: #ffffff;
+    border-radius: 16px 16px 0 0;
+    transform: translateY(100%);
+    transition: transform 0.35s ease-out;
+    z-index: 21;
+    display: flex;
+    flex-direction: column;
+    color: #111;
+    box-shadow: 0 -2px 24px rgba(0, 0, 0, 0.15);
+    will-change: transform;
+  }
+  .city-sheet.open { transform: translateY(0); }
+  .city-sheet.dragging { transition: none; }
+  .screen.dark .city-sheet {
+    background: #1A1A1A;
+    color: #f4f3ef;
+  }
+
+  .sheet-handle-area {
+    padding: 10px 0 4px;
+    display: flex;
+    justify-content: center;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+  .sheet-handle-area:active { cursor: grabbing; }
+  .sheet-handle {
+    width: 40px;
+    height: 4px;
+    background: #d4d1c8;
+    border-radius: 999px;
+  }
+  .screen.dark .sheet-handle { background: #3a3a3c; }
+
+  .sheet-title {
+    text-align: center;
+    font-size: 17px;
+    font-weight: 700;
+    padding: 6px 20px 14px;
+    letter-spacing: -0.005em;
+  }
+
+  .city-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 8px 24px;
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .city-list::-webkit-scrollbar { display: none; }
+  .city-list li {
+    padding: 14px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    transition: background 0.15s ease-out;
+  }
+  .city-list li:active {
+    background: rgba(0, 0, 0, 0.06);
+  }
+  .screen.dark .city-list li:active {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .city-list li .check {
+    width: 18px;
+    height: 18px;
+    opacity: 0;
+    transition: opacity 0.15s ease-out;
+  }
+  .city-list li.selected .check {
+    opacity: 1;
+  }
+
+  /* ============ SELL BUTTON FEEDBACK ============ */
+  .sell-btn {
+    transition: transform 0.1s ease-out;
+  }
+  .sell-btn:active {
+    transform: scale(0.95);
+  }
+
+  /* ============ SELL (NEW LISTING) BOTTOM SHEET ============ */
+  .sell-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease-out;
+    z-index: 12;
+  }
+  .sell-overlay.open { opacity: 1; pointer-events: auto; }
+
+  .sell-sheet {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 95%;
+    background: #1A1A1A;
+    color: #f4f3ef;
+    border-radius: 16px 16px 0 0;
+    transform: translateY(100%);
+    transition: transform 0.4s ease-out;
+    z-index: 13;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 -2px 24px rgba(0, 0, 0, 0.35);
+    will-change: transform;
+    overflow: hidden;
+  }
+  .sell-sheet.open { transform: translateY(0); }
+  .sell-sheet.closing { transition: transform 0.35s ease-in; }
+  .sell-sheet.dragging { transition: none; }
+  .sell-sheet .sheet-handle { background: #3a3a3c; }
+
+  .sell-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 16px 14px;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .sell-header h2 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+    color: #f4f3ef;
+  }
+  .sell-header .back {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    color: #f4f3ef;
+    transition: background 0.15s;
+  }
+  .sell-header .back:active {
+    background: rgba(255,255,255,0.08);
+  }
+  .sell-header .back svg { width: 22px; height: 22px; }
+
+  .sell-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 20px 24px;
+    scrollbar-width: none;
+  }
+  .sell-scroll::-webkit-scrollbar { display: none; }
+
+  .photo-strip {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 2px 0 8px;
+    scrollbar-width: none;
+  }
+  .photo-strip::-webkit-scrollbar { display: none; }
+  .photo-add {
+    flex-shrink: 0;
+    width: 80px;
+    height: 80px;
+    border: 1.5px dashed #6B6B6B;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: transparent;
+    color: #9B9B9B;
+    cursor: pointer;
+    transition: transform 0.1s ease-out, border-color 0.15s, color 0.15s;
+    font: inherit;
+  }
+  .photo-add:active {
+    transform: scale(0.95);
+  }
+  .photo-add svg { width: 24px; height: 24px; }
+  .photo-add .label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  .photo-caption {
+    font-size: 13px;
+    color: #8c897f;
+    margin-top: 10px;
+    margin-bottom: 24px;
+    line-height: 1.4;
+  }
+
+  .form-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .field-label {
+    color: #f4f3ef;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+  }
+  .field-input,
+  .field-textarea,
+  .field-select {
+    background: #2C2C2C;
+    border: 1px solid #2C2C2C;
+    border-radius: 8px;
+    padding: 12px 16px;
+    color: #f4f3ef;
+    font: inherit;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.15s ease-out;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .field-input::placeholder,
+  .field-textarea::placeholder {
+    color: #6e6c67;
+  }
+  .field-input:focus,
+  .field-textarea:focus,
+  .field-select.focused {
+    border-color: #ffffff;
+  }
+  .field-textarea {
+    min-height: 96px;
+    resize: none;
+    font-family: inherit;
+    line-height: 1.4;
+  }
+  .field-select {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    font-weight: 500;
+    user-select: none;
+  }
+  .field-select svg {
+    width: 16px;
+    height: 16px;
+    opacity: 0.55;
+    flex-shrink: 0;
+  }
+
+  .sell-publish {
+    padding: 14px 20px 22px;
+    background: #1A1A1A;
+    border-top: 1px solid #232325;
+    flex-shrink: 0;
+  }
+  .publish-btn {
+    width: 100%;
+    height: 56px;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #111;
+    border: 0;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s ease-out, transform 0.1s ease-out;
+  }
+  .publish-btn:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  .publish-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Footer note */
+  .foot {
+    margin-top: 56px;
+    text-align: center;
+    font-size: 12px;
+    color: #8d8a83;
+    letter-spacing: 0.02em;
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+
+    <header class="page-head">
+      <div class="brand">
+        <h1>Lana <em>Flowers</em> · Каталог</h1>
+        <p>Экран 1 — лента букетов на продажу, светлая и тёмная темы</p>
+      </div>
+      <div class="legend">
+        <span class="chip"><span class="dot"></span>Light</span>
+        <span class="chip dark"><span class="dot"></span>Dark</span>
+      </div>
+    </header>
+
+    <div class="stage">
+
+      <!-- ============ LIGHT ============ -->
+      <div class="frame-wrap">
+        <div class="frame-label">Light</div>
+        <div class="phone">
+          <div class="island"></div>
+          <div class="screen light" data-screen-label="01 Catalog Light">
+
+            <div class="statusbar">
+              <span class="time">9:41</span>
+              <span class="icons">
+                <!-- signal -->
+                <svg width="17" height="11" viewBox="0 0 17 11" fill="none"><rect x="0" y="7" width="3" height="4" rx="0.7" fill="currentColor"/><rect x="4.5" y="5" width="3" height="6" rx="0.7" fill="currentColor"/><rect x="9" y="2.5" width="3" height="8.5" rx="0.7" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="0.7" fill="currentColor"/></svg>
+                <!-- wifi -->
+                <svg width="16" height="11" viewBox="0 0 16 11" fill="none"><path d="M8 10.5l1.6-1.6a2.3 2.3 0 00-3.2 0L8 10.5z" fill="currentColor"/><path d="M3.2 5.7l1.4 1.4a4.8 4.8 0 016.8 0l1.4-1.4a6.8 6.8 0 00-9.6 0z" fill="currentColor"/><path d="M.4 2.9L1.8 4.3a9.3 9.3 0 0112.4 0l1.4-1.4a11.3 11.3 0 00-15.2 0z" fill="currentColor"/></svg>
+                <!-- battery -->
+                <svg width="25" height="11" viewBox="0 0 25 11" fill="none"><rect x="0.5" y="0.5" width="21" height="10" rx="2.5" stroke="currentColor" stroke-opacity="0.45"/><rect x="2" y="2" width="18" height="7" rx="1.3" fill="currentColor"/><rect x="22.5" y="3.5" width="1.5" height="4" rx="0.7" fill="currentColor" fill-opacity="0.45"/></svg>
+              </span>
+            </div>
+
+            <!-- topbar -->
+            <div class="topbar">
+              <button class="city" type="button">
+                <svg class="pin" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-6.5-7-12a7 7 0 1114 0c0 5.5-7 12-7 12z" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="9.5" r="2.6" stroke="currentColor" stroke-width="1.6"/></svg>
+                <span class="name">Алматы</span>
+                <svg class="caret" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button class="sell-btn" type="button">
+                <svg class="plus" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                Продать
+              </button>
+            </div>
+
+            <!-- panes (catalog / messages / profile) -->
+            <div class="panes">
+              <div class="pane pane-catalog active" data-pane="catalog">
+                <div class="chips">
+                  <button class="chip-item active" data-cat="all">Все</button>
+                  <button class="chip-item" data-cat="roses">Розы</button>
+                  <button class="chip-item" data-cat="peonies">Пионы</button>
+                  <button class="chip-item" data-cat="wild">Полевые</button>
+                  <button class="chip-item" data-cat="composition">Композиции</button>
+                  <button class="chip-item" data-cat="dried">Сухоцветы</button>
+                </div>
+                <div class="feed">
+                  <div class="grid" id="grid-light"></div>
+                </div>
+              </div>
+              <div class="pane pane-messages" data-pane="messages">
+                <div class="placeholder">
+                  <svg class="ph-icon" viewBox="0 0 28 28" fill="none"><path d="M5 9.5a3.5 3.5 0 013.5-3.5h11A3.5 3.5 0 0123 9.5v7a3.5 3.5 0 01-3.5 3.5H12l-4.5 3.5V20H8.5A3.5 3.5 0 015 16.5v-7z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                  <div class="ph-text">Скоро</div>
+                  <div class="ph-sub">Чаты с продавцами появятся в следующем билде</div>
+                </div>
+              </div>
+              <div class="pane pane-profile" data-pane="profile">
+                <div class="placeholder">
+                  <svg class="ph-icon" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="10.5" r="4.2" stroke="currentColor" stroke-width="1.6"/><path d="M5.5 23c1.6-3.8 4.8-5.8 8.5-5.8s6.9 2 8.5 5.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                  <div class="ph-text">Скоро</div>
+                  <div class="ph-sub">Личный кабинет — в работе</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- navbar -->
+            <nav class="navbar" data-active="0">
+              <span class="nav-indicator"></span>
+              <div class="nav-tab active" data-tab="catalog">
+                <svg viewBox="0 0 28 28" fill="none">
+                  <!-- 5-petal bloom (filled) -->
+                  <g fill="currentColor">
+                    <ellipse cx="14" cy="7.8" rx="3.4" ry="4.6"/>
+                    <ellipse cx="14" cy="20.2" rx="3.4" ry="4.6"/>
+                    <ellipse cx="7.8" cy="14" rx="4.6" ry="3.4"/>
+                    <ellipse cx="20.2" cy="14" rx="4.6" ry="3.4"/>
+                  </g>
+                  <circle cx="14" cy="14" r="2.4" fill="#F5F5F5"/>
+                </svg>
+                <span>Каталог</span>
+              </div>
+              <div class="nav-tab" data-tab="messages">
+                <svg viewBox="0 0 28 28" fill="none"><path d="M5 9.5a3.5 3.5 0 013.5-3.5h11A3.5 3.5 0 0123 9.5v7a3.5 3.5 0 01-3.5 3.5H12l-4.5 3.5V20H8.5A3.5 3.5 0 015 16.5v-7z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+                <span>Сообщения</span>
+              </div>
+              <div class="nav-tab" data-tab="profile">
+                <svg viewBox="0 0 28 28" fill="none"><circle cx="14" cy="10.5" r="4.2" stroke="currentColor" stroke-width="1.7"/><path d="M5.5 23c1.6-3.8 4.8-5.8 8.5-5.8s6.9 2 8.5 5.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+                <span>Профиль</span>
+              </div>
+            </nav>
+
+            <!-- City picker bottom-sheet -->
+            <div class="city-overlay" data-role="city-overlay"></div>
+            <div class="city-sheet" data-role="city-sheet">
+              <div class="sheet-handle-area" data-role="sheet-handle">
+                <span class="sheet-handle"></span>
+              </div>
+              <div class="sheet-title">Выберите город</div>
+              <ul class="city-list" data-role="city-list"></ul>
+            </div>
+
+            <div class="home-indicator"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ DARK ============ -->
+      <div class="frame-wrap">
+        <div class="frame-label">Dark</div>
+        <div class="phone">
+          <div class="island"></div>
+          <div class="screen dark" data-screen-label="01 Catalog Dark">
+
+            <div class="statusbar">
+              <span class="time">9:41</span>
+              <span class="icons">
+                <svg width="17" height="11" viewBox="0 0 17 11" fill="none"><rect x="0" y="7" width="3" height="4" rx="0.7" fill="currentColor"/><rect x="4.5" y="5" width="3" height="6" rx="0.7" fill="currentColor"/><rect x="9" y="2.5" width="3" height="8.5" rx="0.7" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="0.7" fill="currentColor"/></svg>
+                <svg width="16" height="11" viewBox="0 0 16 11" fill="none"><path d="M8 10.5l1.6-1.6a2.3 2.3 0 00-3.2 0L8 10.5z" fill="currentColor"/><path d="M3.2 5.7l1.4 1.4a4.8 4.8 0 016.8 0l1.4-1.4a6.8 6.8 0 00-9.6 0z" fill="currentColor"/><path d="M.4 2.9L1.8 4.3a9.3 9.3 0 0112.4 0l1.4-1.4a11.3 11.3 0 00-15.2 0z" fill="currentColor"/></svg>
+                <svg width="25" height="11" viewBox="0 0 25 11" fill="none"><rect x="0.5" y="0.5" width="21" height="10" rx="2.5" stroke="currentColor" stroke-opacity="0.45"/><rect x="2" y="2" width="18" height="7" rx="1.3" fill="currentColor"/><rect x="22.5" y="3.5" width="1.5" height="4" rx="0.7" fill="currentColor" fill-opacity="0.45"/></svg>
+              </span>
+            </div>
+
+            <div class="topbar">
+              <button class="city" type="button">
+                <svg class="pin" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-6.5-7-12a7 7 0 1114 0c0 5.5-7 12-7 12z" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="9.5" r="2.6" stroke="currentColor" stroke-width="1.6"/></svg>
+                <span class="name">Алматы</span>
+                <svg class="caret" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button class="sell-btn" type="button">
+                <svg class="plus" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                Продать
+              </button>
+            </div>
+
+                        <!-- panes (catalog / messages / profile) -->
+            <div class="panes">
+              <div class="pane pane-catalog active" data-pane="catalog">
+                <div class="chips">
+                  <button class="chip-item active" data-cat="all">Все</button>
+                  <button class="chip-item" data-cat="roses">Розы</button>
+                  <button class="chip-item" data-cat="peonies">Пионы</button>
+                  <button class="chip-item" data-cat="wild">Полевые</button>
+                  <button class="chip-item" data-cat="composition">Композиции</button>
+                  <button class="chip-item" data-cat="dried">Сухоцветы</button>
+                </div>
+                <div class="feed">
+                  <div class="grid" id="grid-dark"></div>
+                </div>
+              </div>
+              <div class="pane pane-messages" data-pane="messages">
+                <div class="placeholder">
+                  <svg class="ph-icon" viewBox="0 0 28 28" fill="none"><path d="M5 9.5a3.5 3.5 0 013.5-3.5h11A3.5 3.5 0 0123 9.5v7a3.5 3.5 0 01-3.5 3.5H12l-4.5 3.5V20H8.5A3.5 3.5 0 015 16.5v-7z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                  <div class="ph-text">Скоро</div>
+                  <div class="ph-sub">Чаты с продавцами появятся в следующем билде</div>
+                </div>
+              </div>
+              <div class="pane pane-profile" data-pane="profile">
+                <div class="placeholder">
+                  <svg class="ph-icon" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="10.5" r="4.2" stroke="currentColor" stroke-width="1.6"/><path d="M5.5 23c1.6-3.8 4.8-5.8 8.5-5.8s6.9 2 8.5 5.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                  <div class="ph-text">Скоро</div>
+                  <div class="ph-sub">Личный кабинет — в работе</div>
+                </div>
+              </div>
+            </div>
+
+            <nav class="navbar" data-active="0">
+              <span class="nav-indicator"></span>
+              <div class="nav-tab active" data-tab="catalog">
+                <svg viewBox="0 0 28 28" fill="none">
+                  <g fill="currentColor">
+                    <ellipse cx="14" cy="7.8" rx="3.4" ry="4.6"/>
+                    <ellipse cx="14" cy="20.2" rx="3.4" ry="4.6"/>
+                    <ellipse cx="7.8" cy="14" rx="4.6" ry="3.4"/>
+                    <ellipse cx="20.2" cy="14" rx="4.6" ry="3.4"/>
+                  </g>
+                  <circle cx="14" cy="14" r="2.4" fill="#2C2C2C"/>
+                </svg>
+                <span>Каталог</span>
+              </div>
+              <div class="nav-tab" data-tab="messages">
+                <svg viewBox="0 0 28 28" fill="none"><path d="M5 9.5a3.5 3.5 0 013.5-3.5h11A3.5 3.5 0 0123 9.5v7a3.5 3.5 0 01-3.5 3.5H12l-4.5 3.5V20H8.5A3.5 3.5 0 015 16.5v-7z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+                <span>Сообщения</span>
+              </div>
+              <div class="nav-tab" data-tab="profile">
+                <svg viewBox="0 0 28 28" fill="none"><circle cx="14" cy="10.5" r="4.2" stroke="currentColor" stroke-width="1.7"/><path d="M5.5 23c1.6-3.8 4.8-5.8 8.5-5.8s6.9 2 8.5 5.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+                <span>Профиль</span>
+              </div>
+            </nav>
+
+            <!-- City picker bottom-sheet -->
+            <div class="city-overlay" data-role="city-overlay"></div>
+            <div class="city-sheet" data-role="city-sheet">
+              <div class="sheet-handle-area" data-role="sheet-handle">
+                <span class="sheet-handle"></span>
+              </div>
+              <div class="sheet-title">Выберите город</div>
+              <ul class="city-list" data-role="city-list"></ul>
+            </div>
+
+            <div class="home-indicator"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <p class="foot">390 × 844 · vertical 4:5 cards · floating pill nav · Manrope / Fraunces</p>
+  </div>
+
+<script>
+  // -------- Data --------
+  const bouquets = [
+    { price: "12 500 ₸", name: "Пудровые пионы, 15 шт",        seller: "Айгерим",        rating: "4.9", photo: "assets/b1.jpg", ava: "assets/a1.jpg", tags: ["peonies"] },
+    { price: "8 900 ₸",  name: "Полевой микс с лавандой",      seller: "Дильназ",        rating: "4.8", photo: "assets/b2.jpg", ava: "assets/a2.jpg", tags: ["wild"] },
+    { price: "24 000 ₸", name: "Монобукет белых роз, premium", seller: "Florist Studio", rating: "5.0", photo: "assets/b3.jpg", ava: "assets/a3.jpg", tags: ["roses"] },
+    { price: "15 700 ₸", name: "Композиция в крафте «Осень»",  seller: "Малика",         rating: "4.7", photo: "assets/b4.jpg", ava: "assets/a4.jpg", tags: ["composition"] },
+    { price: "6 200 ₸",  name: "Маленький букет ромашек",      seller: "Сабина",         rating: "4.8", photo: "assets/b5.jpg", ava: "assets/a5.jpg", tags: ["wild"] },
+    { price: "18 400 ₸", name: "Пионовидные розы и эвкалипт",  seller: "Bloom Almaty",   rating: "4.9", photo: "assets/b6.jpg", ava: "assets/a6.jpg", tags: ["roses", "peonies"] }
+  ];
+
+  const cities = [
+    "Алматы", "Астана", "Шымкент", "Караганда", "Актобе",
+    "Атырау", "Тараз", "Павлодар", "Усть-Каменогорск", "Семей"
+  ];
+
+  const cardTemplate = (b) => `
+    <article class="card">
+      <div class="photo" style="background-image: url('${b.photo}')"></div>
+      <div class="body">
+        <div class="price">${b.price}</div>
+        <div class="name">${b.name}</div>
+        <div class="divider"></div>
+        <div class="seller">
+          <span class="ava" style="background-image: url('${b.ava}')"></span>
+          <span class="seller-name">${b.seller}</span>
+          <span class="rating">
+            <svg viewBox="0 0 12 12" fill="currentColor"><path d="M6 1.2l1.5 3 3.3.5-2.4 2.3.6 3.3L6 8.7 3 10.3l.6-3.3L1.2 4.7l3.3-.5L6 1.2z"/></svg>
+            ${b.rating}
+          </span>
+        </div>
+      </div>
+    </article>
+  `;
+
+  const emptyState = `
+    <div class="empty-state">
+      <svg viewBox="0 0 48 48" fill="none">
+        <g fill="currentColor">
+          <ellipse cx="24" cy="13" rx="6" ry="8"/>
+          <ellipse cx="24" cy="35" rx="6" ry="8"/>
+          <ellipse cx="13" cy="24" rx="8" ry="6"/>
+          <ellipse cx="35" cy="24" rx="8" ry="6"/>
+        </g>
+        <circle cx="24" cy="24" r="4" fill="currentColor" fill-opacity="0.001"/>
+      </svg>
+      <p>В этой категории<br/>пока нет букетов</p>
+    </div>
+  `;
+
+  function getBouquetsForCategory(cat) {
+    if (!cat || cat === 'all') return bouquets;
+    return bouquets.filter(b => b.tags.includes(cat));
+  }
+
+  function renderGrid(gridEl, cat) {
+    const list = getBouquetsForCategory(cat);
+    gridEl.innerHTML = list.length
+      ? list.map(cardTemplate).join('')
+      : emptyState;
+  }
+
+  // -------- Per-screen wiring --------
+  const sellSheetTemplate = `
+    <div class="sell-overlay" data-role="sell-overlay"></div>
+    <div class="sell-sheet" data-role="sell-sheet">
+      <div class="sheet-handle-area" data-role="sell-handle">
+        <span class="sheet-handle"></span>
+      </div>
+      <div class="sell-header">
+        <button class="back" type="button" data-role="sell-close" aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <h2>Новое объявление</h2>
+      </div>
+      <div class="sell-scroll">
+        <div class="photo-strip">
+          <button class="photo-add" type="button">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span class="label">Фото</span>
+          </button>
+        </div>
+        <p class="photo-caption">До 5 фото. Первое — главное.</p>
+        <div class="form-fields">
+          <label class="field">
+            <span class="field-label">Название</span>
+            <input class="field-input" type="text" data-field="title" placeholder="Букет роз 25 шт" />
+          </label>
+          <label class="field">
+            <span class="field-label">Цена, ₸</span>
+            <input class="field-input" type="number" inputmode="numeric" data-field="price" placeholder="0" />
+          </label>
+          <div class="field">
+            <span class="field-label">Город</span>
+            <div class="field-select" data-field="city" tabindex="0">
+              <span data-role="city-value">Алматы</span>
+              <svg viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </div>
+          <label class="field">
+            <span class="field-label">Описание</span>
+            <textarea class="field-textarea" data-field="desc" rows="4" placeholder="Расскажите о букете: состав, повод, особенности"></textarea>
+          </label>
+        </div>
+      </div>
+      <div class="sell-publish">
+        <button class="publish-btn" type="button" disabled>Опубликовать</button>
+      </div>
+    </div>
+  `;
+
+  function setupScreen(screen) {
+    // inject sell sheet (one per screen)
+    screen.insertAdjacentHTML('beforeend', sellSheetTemplate);
+
+    const grid       = screen.querySelector('.grid');
+    const feed       = screen.querySelector('.feed');
+    const nav        = screen.querySelector('.navbar');
+    const indicator  = screen.querySelector('.nav-indicator');
+    const tabs       = Array.from(screen.querySelectorAll('.nav-tab'));
+    const panes      = Array.from(screen.querySelectorAll('.pane'));
+    const chips      = Array.from(screen.querySelectorAll('.chip-item'));
+    const cityBtn    = screen.querySelector('.city');
+    const topbarCityName = screen.querySelector('.city .name');
+    const overlay    = screen.querySelector('[data-role="city-overlay"]');
+    const sheet      = screen.querySelector('[data-role="city-sheet"]');
+    const sheetList  = screen.querySelector('[data-role="city-list"]');
+    const handle     = screen.querySelector('[data-role="sheet-handle"]');
+
+    const sellBtn    = screen.querySelector('.sell-btn');
+    const sellOverlay = screen.querySelector('[data-role="sell-overlay"]');
+    const sellSheet   = screen.querySelector('[data-role="sell-sheet"]');
+    const sellHandle  = screen.querySelector('[data-role="sell-handle"]');
+    const sellClose   = screen.querySelector('[data-role="sell-close"]');
+    const sellCityValue = sellSheet.querySelector('[data-role="city-value"]');
+    const sellCitySelect = sellSheet.querySelector('[data-field="city"]');
+    const titleInput  = sellSheet.querySelector('[data-field="title"]');
+    const priceInput  = sellSheet.querySelector('[data-field="price"]');
+    const publishBtn  = sellSheet.querySelector('.publish-btn');
+
+    let topbarCity = "Алматы";
+    let formCity   = "Алматы";
+    let currentCat = "all";
+
+    // initial grid
+    renderGrid(grid, currentCat);
+
+    // -------- Tabs --------
+    function activateTab(index) {
+      tabs.forEach((t, i) => t.classList.toggle('active', i === index));
+      indicator.style.transform = `translateX(${index * 100}%)`;
+      nav.setAttribute('data-active', String(index));
+      const targetName = tabs[index].getAttribute('data-tab');
+      panes.forEach(p => p.classList.toggle('active', p.getAttribute('data-pane') === targetName));
+    }
+    tabs.forEach((t, i) => t.addEventListener('click', () => activateTab(i)));
+
+    // -------- Chips --------
+    function setCategory(cat, clickedChip) {
+      if (cat === currentCat) return;
+      currentCat = cat;
+      chips.forEach(c => c.classList.toggle('active', c === clickedChip));
+      grid.classList.add('fading');
+      setTimeout(() => {
+        renderGrid(grid, cat);
+        requestAnimationFrame(() => grid.classList.remove('fading'));
+      }, 220);
+    }
+    chips.forEach(chip => chip.addEventListener('click', () => {
+      setCategory(chip.getAttribute('data-cat'), chip);
+    }));
+
+    // -------- Navbar collapse on scroll --------
+    let lastY = 0, ticking = false;
+    function onScrollUpdate() {
+      const y = feed.scrollTop;
+      const dy = y - lastY;
+      if (Math.abs(dy) >= 4) {
+        if (dy > 0 && y > 24)      nav.classList.add('collapsed');
+        else if (dy < 0)            nav.classList.remove('collapsed');
+        lastY = y;
+      }
+      ticking = false;
+    }
+    feed.addEventListener('scroll', () => {
+      if (!ticking) { requestAnimationFrame(onScrollUpdate); ticking = true; }
+    }, { passive: true });
+
+    // -------- City bottom-sheet (shared between topbar and form) --------
+    let cityContext = null; // {current, onSelect}
+
+    function renderCityList() {
+      const cur = cityContext ? cityContext.current : topbarCity;
+      sheetList.innerHTML = cities.map(c => `
+        <li data-city="${c}" class="${c === cur ? 'selected' : ''}">
+          <span>${c}</span>
+          <svg class="check" viewBox="0 0 20 20" fill="none">
+            <path d="M4 10.5l3.8 3.8L16 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </li>
+      `).join('');
+      sheetList.querySelectorAll('li').forEach(li => {
+        li.addEventListener('click', () => {
+          const newCity = li.getAttribute('data-city');
+          if (cityContext) cityContext.onSelect(newCity);
+          closeCitySheet();
+        });
+      });
+    }
+    function openCitySheet(ctx) {
+      cityContext = ctx;
+      renderCityList();
+      overlay.classList.add('open');
+      sheet.classList.add('open');
+    }
+    function closeCitySheet() {
+      overlay.classList.remove('open');
+      sheet.classList.remove('open');
+      sheet.style.transform = '';
+    }
+    cityBtn.addEventListener('click', () => openCitySheet({
+      current: topbarCity,
+      onSelect: c => { topbarCity = c; topbarCityName.textContent = c; }
+    }));
+    overlay.addEventListener('click', closeCitySheet);
+
+    // drag-down on city handle
+    attachDrag(handle, sheet, closeCitySheet);
+
+    // -------- Sell sheet --------
+    function openSellSheet() {
+      sellOverlay.classList.add('open');
+      sellSheet.classList.add('open');
+    }
+    function closeSellSheet() {
+      sellOverlay.classList.remove('open');
+      sellSheet.classList.add('closing');
+      sellSheet.classList.remove('open');
+      sellSheet.style.transform = '';
+      setTimeout(() => sellSheet.classList.remove('closing'), 380);
+    }
+    sellBtn.addEventListener('click', openSellSheet);
+    sellOverlay.addEventListener('click', closeSellSheet);
+    sellClose.addEventListener('click', closeSellSheet);
+    attachDrag(sellHandle, sellSheet, closeSellSheet);
+
+    // Sell form: open city sheet on tap
+    function openFormCitySheet() {
+      sellCitySelect.classList.add('focused');
+      openCitySheet({
+        current: formCity,
+        onSelect: c => { formCity = c; sellCityValue.textContent = c; }
+      });
+    }
+    sellCitySelect.addEventListener('click', openFormCitySheet);
+    // remove "focused" outline when city sheet closes
+    overlay.addEventListener('click', () => sellCitySelect.classList.remove('focused'));
+    // also remove when picking a city
+    const origRender = renderCityList;
+    // (we rely on closeCitySheet to clear focused via observer below)
+    new MutationObserver(() => {
+      if (!sheet.classList.contains('open')) sellCitySelect.classList.remove('focused');
+    }).observe(sheet, { attributes: true, attributeFilter: ['class'] });
+
+    // Form validation: enable publish when name + price filled
+    function validate() {
+      const ok = titleInput.value.trim().length > 0 && priceInput.value.trim().length > 0;
+      publishBtn.disabled = !ok;
+    }
+    titleInput.addEventListener('input', validate);
+    priceInput.addEventListener('input', validate);
+
+    publishBtn.addEventListener('click', () => {
+      if (publishBtn.disabled) return;
+      // mock publish: close sheet & reset
+      closeSellSheet();
+      setTimeout(() => {
+        titleInput.value = '';
+        priceInput.value = '';
+        sellSheet.querySelector('[data-field="desc"]').value = '';
+        formCity = "Алматы";
+        sellCityValue.textContent = formCity;
+        validate();
+      }, 400);
+    });
+  }
+
+  // Reusable drag-down-to-dismiss for any sheet
+  function attachDrag(handleEl, sheetEl, onDismiss) {
+    let startY = null;
+    let heightPx = 0;
+    handleEl.addEventListener('pointerdown', (e) => {
+      startY = e.clientY;
+      heightPx = sheetEl.getBoundingClientRect().height;
+      sheetEl.classList.add('dragging');
+      handleEl.setPointerCapture && handleEl.setPointerCapture(e.pointerId);
+    });
+    handleEl.addEventListener('pointermove', (e) => {
+      if (startY == null) return;
+      const dy = Math.max(0, e.clientY - startY);
+      sheetEl.style.transform = `translateY(${dy}px)`;
+    });
+    function end(e) {
+      if (startY == null) return;
+      const dy = Math.max(0, e.clientY - startY);
+      sheetEl.classList.remove('dragging');
+      if (dy > heightPx * 0.25) {
+        onDismiss();
+      } else {
+        sheetEl.style.transform = '';
+      }
+      startY = null;
+    }
+    handleEl.addEventListener('pointerup', end);
+    handleEl.addEventListener('pointercancel', end);
+  }
+
+  document.querySelectorAll('.screen').forEach(setupScreen);
+</script>
+</body>
+</html>

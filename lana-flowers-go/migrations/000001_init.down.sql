@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS offers;
+DROP TABLE IF EXISTS bouquets;
+DROP TABLE IF EXISTS users;
+
+DROP TYPE IF EXISTS offer_status;
+DROP TYPE IF EXISTS bouquet_status;

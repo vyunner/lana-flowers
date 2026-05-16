@@ -1,0 +1,2 @@
+ALTER TABLE users DROP COLUMN avatar_emoji;
+ALTER TABLE users ADD COLUMN avatar_url TEXT NOT NULL DEFAULT '';

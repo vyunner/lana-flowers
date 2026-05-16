@@ -1,0 +1,20 @@
+# Корень монорепо — общие правила. В lana-flowers-go и lana-flowers-web
+# лежат свои .gitignore с правилами под их стек (node_modules / app / dist / ...).
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Логи
+*.log
+
+# Секреты — подстраховка от случайного коммита в корень
+.env
+.env.*
+!.env.example
