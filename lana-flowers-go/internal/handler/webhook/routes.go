@@ -252,7 +252,7 @@ func handleCallback(db *sql.DB, q *CallbackQuery) {
 	case "counter":
 		_ = telegram.AnswerCallbackQuery(q.ID, "Введите встречную цену в чате", false)
 		if q.Message != nil {
-			telegram.AskForCounterPrice(q.Message.Chat.ID, offerID, ctx.Price)
+			telegram.AskForCounterPrice(q.Message.Chat.ID, offerID, ctx.BouquetTitle)
 		}
 
 	default:

@@ -246,13 +246,12 @@ func NotifyOfferCountered(buyerTGID string, newOfferID, bouquetID int64, bouquet
 }
 
 // AskForCounterPrice — после тапа "Встречно" просим юзера ввести сумму через ForceReply.
-// В тексте сообщения зашиваем offer_id (#N), чтобы при ответе handleReply
-// его восстановил из regex'а.
-func AskForCounterPrice(chatID any, offerID int64, currentPrice int64) {
-	text := fmt.Sprintf(
-		"Введите вашу встречную цену в ₸ (текущая: %s ₸). #%d",
-		formatPrice(currentPrice), offerID,
-	)
+//
+// В тексте ОБЯЗАТЕЛЬНО оставляем «#N» в конце — handleReply парсит его
+// regex'ом `#(\d+)` чтобы восстановить offer_id из reply-контекста. Без
+// этого не поймём какому офферу цена адресована.
+func AskForCounterPrice(chatID any, offerID int64, bouquetTitle string) {
+	text := fmt.Sprintf("Укажите встречную цену за «%s». #%d", bouquetTitle, offerID)
 	markup := &ForceReply{
 		ForceReply: true,
 		Selective:  true,
