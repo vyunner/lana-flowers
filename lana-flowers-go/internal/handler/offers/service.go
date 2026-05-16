@@ -163,7 +163,15 @@ func CounterOffer(db *sql.DB, offerID int64, sellerID string, newPrice int64, me
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.Exec(`UPDATE offers SET status = 'countered', responded_at = NOW() WHERE id = $1`, offerID); err != nil {
+	// Закрываем ВСЕ pending-офферы между этой парой (buyer↔seller) на этом букете,
+	// не только явный offerID. Иначе если параллельно висит ещё один pending
+	// (например, оригинальный покупатель создал свежий оффер пока шёл counter-обмен),
+	// INSERT ниже упадёт на idx_offers_pending_unique.
+	if _, err := tx.Exec(`
+		UPDATE offers SET status = 'countered', responded_at = NOW()
+		WHERE bouquet_id = $1 AND status = 'pending'
+		  AND ((buyer_id = $2 AND seller_id = $3) OR (buyer_id = $3 AND seller_id = $2))
+	`, ctx.BouquetID, ctx.BuyerID, ctx.SellerID); err != nil {
 		return 0, err
 	}
 
