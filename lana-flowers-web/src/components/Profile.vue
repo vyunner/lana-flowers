@@ -37,9 +37,8 @@ async function loadAll() {
 onMounted(loadAll)
 defineExpose({ refresh: loadAll })
 
-// Polling 30с — мои объявления могут смениться статусом (sold/expired)
-// когда контрагент принял оффер. Реже чем Deals — экран менее «горячий».
-usePolling(loadAll, 30000)
+// Polling — safety net (60с). Основные апдейты приходят через SSE.
+usePolling(loadAll, 60000)
 
 async function removeBouquet(b) {
   if (!(await confirm(`Снять с продажи «${b.title}»?`))) return

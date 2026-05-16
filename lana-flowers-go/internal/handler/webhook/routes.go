@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"lana-flowers-go/internal/events"
 	"lana-flowers-go/internal/handler/offers"
 	"lana-flowers-go/internal/telegram"
 
@@ -235,6 +236,10 @@ func handleCallback(db *sql.DB, q *CallbackQuery) {
 		_ = telegram.AnswerCallbackQuery(q.ID, "✅ Принято", false)
 		go telegram.NotifyOfferAccepted(ctx.BuyerID, ctx.BouquetTitle, ctx.Price,
 			ctx.SellerName)
+		events.Default().Publish(ctx.BuyerID, events.Event{
+			Type: events.TypeOfferAccepted, OfferID: offerID,
+			BouquetTitle: ctx.BouquetTitle, Price: ctx.Price,
+		})
 		for _, id := range expired {
 			go notifyExpiredFromWebhook(db, id)
 		}
@@ -247,6 +252,10 @@ func handleCallback(db *sql.DB, q *CallbackQuery) {
 		}
 		_ = telegram.AnswerCallbackQuery(q.ID, "❌ Отклонено", false)
 		go telegram.NotifyOfferRejected(ctx.BuyerID, ctx.BouquetTitle, ctx.Price)
+		events.Default().Publish(ctx.BuyerID, events.Event{
+			Type: events.TypeOfferRejected, OfferID: offerID,
+			BouquetTitle: ctx.BouquetTitle, Price: ctx.Price,
+		})
 		appendStatusLine(q.Message, "\n\n❌ <b>Отклонено</b>")
 
 	case "counter":
@@ -329,6 +338,10 @@ func handleReply(db *sql.DB, m *Message) {
 		origCtx.Price, price,
 		origCtx.SellerName, "", // см. CounterOffer выше — message пустой
 	)
+	events.Default().Publish(origCtx.BuyerID, events.Event{
+		Type: events.TypeOfferCountered, OfferID: newID,
+		BouquetTitle: origCtx.BouquetTitle, Price: price,
+	})
 }
 
 func stripNonDigits(s string) string {
@@ -341,15 +354,18 @@ func stripNonDigits(s string) string {
 	return sb.String()
 }
 
-// notifyExpiredFromWebhook — DM покупателю что его pending-оффер на этом букете
-// заэкспайрился (продавец принял другой оффер). Тот же смысл что
-// offers.notifyExpired, но в webhook'е нет к нему доступа (private).
+// notifyExpiredFromWebhook — DM + SSE покупателю что его pending-оффер
+// на этом букете заэкспайрился (продавец принял другой оффер).
 func notifyExpiredFromWebhook(db *sql.DB, offerID int64) {
 	ctx, err := offers.LoadContext(db, offerID)
 	if err != nil {
 		return
 	}
 	telegram.NotifyOfferExpired(ctx.BuyerID, ctx.BouquetTitle, ctx.Price)
+	events.Default().Publish(ctx.BuyerID, events.Event{
+		Type: events.TypeOfferExpired, OfferID: offerID,
+		BouquetTitle: ctx.BouquetTitle, Price: ctx.Price,
+	})
 }
 
 // appendStatusLine — дорисовать строку «принято/отклонено» в сообщение продавца,

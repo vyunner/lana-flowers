@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"lana-flowers-go/internal/events"
 	"lana-flowers-go/internal/response"
 	"lana-flowers-go/internal/telegram"
 
@@ -53,7 +54,11 @@ func Respond(c *gin.Context, db *sql.DB) {
 			return
 		}
 		go telegram.NotifyOfferAccepted(ctx.BuyerID, ctx.BouquetTitle, ctx.Price, ctx.SellerName)
-		// Уведомляем тех у кого pending'и заэкспайрились (другие покупатели).
+		// SSE-event покупателю — он узнает мгновенно даже сидя в мини-аппе
+		events.Default().Publish(ctx.BuyerID, events.Event{
+			Type: events.TypeOfferAccepted, OfferID: offerID,
+			BouquetTitle: ctx.BouquetTitle, Price: ctx.Price,
+		})
 		for _, id := range expired {
 			go notifyExpired(db, id)
 		}
@@ -65,6 +70,10 @@ func Respond(c *gin.Context, db *sql.DB) {
 			return
 		}
 		go telegram.NotifyOfferRejected(ctx.BuyerID, ctx.BouquetTitle, ctx.Price)
+		events.Default().Publish(ctx.BuyerID, events.Event{
+			Type: events.TypeOfferRejected, OfferID: offerID,
+			BouquetTitle: ctx.BouquetTitle, Price: ctx.Price,
+		})
 		response.OK(c, gin.H{"status": "rejected"})
 
 	case "counter":
@@ -78,6 +87,11 @@ func Respond(c *gin.Context, db *sql.DB) {
 			ctx.Price, req.Price,
 			ctx.SellerName, req.Message,
 		)
+		// SSE — старому покупателю (он теперь responder на новый pending)
+		events.Default().Publish(ctx.BuyerID, events.Event{
+			Type: events.TypeOfferCountered, OfferID: newID,
+			BouquetTitle: ctx.BouquetTitle, Price: req.Price,
+		})
 		response.OK(c, gin.H{"status": "countered", "new_offer_id": newID})
 
 	case "cancel":
@@ -88,15 +102,18 @@ func Respond(c *gin.Context, db *sql.DB) {
 		}
 		// Уведомляем ПРОТИВОПОЛОЖНУЮ сторону. Кто инициатор — тот и не получает,
 		// чтобы не было «вы сами отменили».
-		var otherID, otherName string
+		var otherID string
 		var iAmBuyer bool
 		if uid == cancelCtx.BuyerID {
-			otherID, otherName, iAmBuyer = cancelCtx.SellerID, cancelCtx.SellerName, true
+			otherID, iAmBuyer = cancelCtx.SellerID, true
 		} else {
-			otherID, otherName, iAmBuyer = cancelCtx.BuyerID, cancelCtx.BuyerName, false
+			otherID, iAmBuyer = cancelCtx.BuyerID, false
 		}
-		_ = otherName // имя пока не нужно для текста, может пригодиться позже
 		go telegram.NotifyDealCancelled(otherID, cancelCtx.BouquetTitle, cancelCtx.Price, iAmBuyer)
+		events.Default().Publish(otherID, events.Event{
+			Type: events.TypeOfferCancelled, OfferID: offerID,
+			BouquetTitle: cancelCtx.BouquetTitle, Price: cancelCtx.Price,
+		})
 		response.OK(c, gin.H{"status": "cancelled"})
 
 	default:
@@ -105,14 +122,18 @@ func Respond(c *gin.Context, db *sql.DB) {
 }
 
 // notifyExpired — DM покупателю с заэкспайрившимся оффером после accept
-// другого оффера на том же букете. Подгружаем context отдельно: основной
-// AcceptOffer возвращает только id-шники.
+// другого оффера на том же букете + SSE-event'ом если он сейчас сидит
+// в мини-аппе.
 func notifyExpired(db *sql.DB, offerID int64) {
 	ctx, err := LoadContext(db, offerID)
 	if err != nil {
 		return
 	}
 	telegram.NotifyOfferExpired(ctx.BuyerID, ctx.BouquetTitle, ctx.Price)
+	events.Default().Publish(ctx.BuyerID, events.Event{
+		Type: events.TypeOfferExpired, OfferID: offerID,
+		BouquetTitle: ctx.BouquetTitle, Price: ctx.Price,
+	})
 }
 
 func serviceErr(c *gin.Context, err error) {

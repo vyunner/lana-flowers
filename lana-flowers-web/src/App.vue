@@ -17,6 +17,10 @@ import BouquetDetail from './components/BouquetDetail.vue'
 import OnboardingPhone from './components/OnboardingPhone.vue'
 import OnboardingName from './components/OnboardingName.vue'
 import OnboardingAvatar from './components/OnboardingAvatar.vue'
+import Toast from './components/base/Toast.vue'
+import { useEventStream } from './composables/useEventStream'
+import { pushToast } from './state/toasts'
+import { formatPriceKzt } from './utils/format'
 const authReady = ref(false)
 
 onMounted(async () => {
@@ -126,6 +130,48 @@ function selectTab(t) {
   haptic('light')
   activeTab.value = t
 }
+
+// ---- SSE: in-app push для событий когда юзер сидит в мини-аппе ----
+// Telegram не показывает push-уведомления когда юзер «в чате с ботом»
+// (а мини-апп открытый — это и есть «в чате»). Поэтому самим рисуем
+// toast'ы при изменении статуса оффера.
+//
+// Кроме toast — рефрешим активную вкладку, чтобы данные в UI совпадали
+// с тем что бэк только что сообщил. Polling 60с остаётся safety-net'ом
+// на случай если SSE-соединение лопнуло.
+function handleEvent(e) {
+  const priceStr = e.price ? formatPriceKzt(e.price) : ''
+  const title = e.bouquet_title ? `«${e.bouquet_title}»` : ''
+
+  switch (e.type) {
+    case 'offer.created':
+      pushToast(`🌸 Новое предложение ${priceStr} за ${title}`, { kind: 'info' })
+      break
+    case 'offer.accepted':
+      pushToast(`✅ Ваше предложение ${priceStr} за ${title} принято! Контакты — в Сделках`, { kind: 'success', ttl: 6000 })
+      break
+    case 'offer.rejected':
+      pushToast(`❌ Отклонено: ${title}`, { kind: 'err' })
+      break
+    case 'offer.countered':
+      pushToast(`🔄 Встречное ${priceStr} за ${title}`, { kind: 'warn' })
+      break
+    case 'offer.cancelled':
+      pushToast(`⚠️ Сделка отменена: ${title}`, { kind: 'warn' })
+      break
+    case 'offer.expired':
+      pushToast(`Букет ${title} ушёл другому. Ваше ${priceStr} отменено`, { kind: 'err' })
+      break
+    default:
+      return // unknown event — ignore
+  }
+  // Рефрешим всё что открыто (cheap, polling и так умеет).
+  gridRef.value?.refresh?.()
+  dealsRef.value?.refresh?.()
+  profileRef.value?.refresh?.()
+}
+
+useEventStream(handleEvent)
 </script>
 
 <template>
@@ -204,6 +250,9 @@ function selectTab(t) {
       @close="closeDetail"
       @offer="openOfferFromDetail"
     />
+
+    <!-- Глобальный стек тоастов поверх всего: SSE-события рендерятся здесь -->
+    <Toast />
   </div>
 </template>
 

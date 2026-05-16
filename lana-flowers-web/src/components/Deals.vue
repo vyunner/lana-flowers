@@ -23,10 +23,10 @@ async function load() {
 onMounted(load)
 defineExpose({ refresh: load })
 
-// Тихий polling раз в 15с — самая частая зона апдейтов: контрагент
-// может ответить, принять, контрить в любую секунду. Пауза автоматически
-// когда мини-апп ушёл в фон.
-usePolling(load, 15000)
+// Polling — safety net на случай если SSE-соединение лопнуло. Основной
+// канал апдейтов теперь SSE (мгновенно через App.vue → handleEvent).
+// 60с достаточно: даже если SSE завис, юзер увидит свежее в течение минуты.
+usePolling(load, 60000)
 
 // ---- Фильтр ----
 const filter = ref('active') // 'active' | 'history'

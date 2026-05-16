@@ -38,10 +38,8 @@ defineExpose({ refresh: reload })
 onMounted(reload)
 watch(() => [props.category, props.city], reload)
 
-// Polling 30с — новые объявления появляются + статусы могут протухать
-// (sold/archived). Без fading=true чтобы не моргало каждый тик —
-// прозрачно подмена данных в .grid.
-usePolling(run, 30000)
+// Polling — safety net (60с). Основные апдейты приходят через SSE.
+usePolling(run, 60000)
 
 const items = computed(() => data.value || [])
 

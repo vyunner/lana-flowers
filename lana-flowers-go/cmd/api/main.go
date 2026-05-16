@@ -16,6 +16,7 @@ import (
 	"lana-flowers-go/internal/auth"
 	dbpkg "lana-flowers-go/internal/db"
 	"lana-flowers-go/internal/handler/bouquets"
+	eventshandler "lana-flowers-go/internal/handler/events"
 	"lana-flowers-go/internal/handler/offers"
 	"lana-flowers-go/internal/handler/upload"
 	"lana-flowers-go/internal/handler/users"
@@ -100,6 +101,7 @@ func main() {
 	bouquets.RegisterRoutes(r, conn)
 	offers.RegisterRoutes(r, conn)
 	upload.RegisterRoutes(r, conn)
+	eventshandler.RegisterRoutes(r, conn)
 
 	// Graceful shutdown: ловим SIGTERM/SIGINT, даём 10s in-flight запросам
 	// нормально закончиться вместо kill -9. Без этого деплой обрывает
@@ -158,6 +160,11 @@ func authMiddleware(db *sql.DB) gin.HandlerFunc {
 			if strings.HasPrefix(authHeader, "tma ") {
 				raw = strings.TrimPrefix(authHeader, "tma ")
 			}
+		}
+		if raw == "" {
+			// SSE-fallback: EventSource в браузере НЕ умеет custom headers,
+			// поэтому /events приходит с initData в query (?tma=...).
+			raw = c.Query("tma")
 		}
 
 		if raw == "" {

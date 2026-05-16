@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"lana-flowers-go/internal/events"
 	"lana-flowers-go/internal/response"
 	"lana-flowers-go/internal/telegram"
 
@@ -61,6 +62,11 @@ func Create(c *gin.Context, db *sql.DB) {
 			sellerPrice, ctx.Price,
 			ctx.BuyerName, ctx.Message,
 		)
+		// In-app push продавцу — если у него сейчас открыт мини-апп.
+		events.Default().Publish(ctx.SellerID, events.Event{
+			Type: events.TypeOfferCreated, OfferID: ctx.ID,
+			BouquetTitle: ctx.BouquetTitle, Price: ctx.Price,
+		})
 	}
 
 	response.OK(c, gin.H{"id": id})
