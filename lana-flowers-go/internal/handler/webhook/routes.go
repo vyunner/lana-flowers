@@ -34,6 +34,7 @@ type Message struct {
 	From           *User    `json:"from"`
 	Chat           Chat     `json:"chat"`
 	Text           string   `json:"text"`
+	Caption        string   `json:"caption,omitempty"` // для photo/video — текст под медиа
 	Contact        *Contact `json:"contact,omitempty"`
 	ReplyToMessage *Message `json:"reply_to_message,omitempty"`
 }
@@ -172,6 +173,7 @@ func handleContact(db *sql.DB, m *Message) {
 
 // handleCallback — нажатие inline-кнопки. callback_data = "offer:<id>:<action>".
 func handleCallback(db *sql.DB, q *CallbackQuery) {
+	log.Printf("callback: data=%q from=%v", q.Data, q.From)
 	parts := strings.Split(q.Data, ":")
 	if len(parts) < 3 || parts[0] != "offer" {
 		_ = telegram.AnswerCallbackQuery(q.ID, "Неизвестная команда", false)
@@ -219,10 +221,7 @@ func handleCallback(db *sql.DB, q *CallbackQuery) {
 		_ = telegram.AnswerCallbackQuery(q.ID, "✅ Принято", false)
 		go telegram.NotifyOfferAccepted(ctx.BuyerID, ctx.BouquetTitle, ctx.Price,
 			ctx.SellerName)
-		if q.Message != nil {
-			newText := q.Message.Text + fmt.Sprintf("\n\n✅ <b>Принято за %d ₸</b>", ctx.Price)
-			_ = telegram.EditMessageText(q.Message.Chat.ID, q.Message.MessageID, newText, nil)
-		}
+		appendStatusLine(q.Message, fmt.Sprintf("\n\n✅ <b>Принято за %d ₸</b>", ctx.Price))
 
 	case "reject":
 		if err := offers.RejectOffer(db, offerID, userID); err != nil {
@@ -231,10 +230,7 @@ func handleCallback(db *sql.DB, q *CallbackQuery) {
 		}
 		_ = telegram.AnswerCallbackQuery(q.ID, "❌ Отклонено", false)
 		go telegram.NotifyOfferRejected(ctx.BuyerID, ctx.BouquetTitle, ctx.Price)
-		if q.Message != nil {
-			newText := q.Message.Text + "\n\n❌ <b>Отклонено</b>"
-			_ = telegram.EditMessageText(q.Message.Chat.ID, q.Message.MessageID, newText, nil)
-		}
+		appendStatusLine(q.Message, "\n\n❌ <b>Отклонено</b>")
 
 	case "counter":
 		_ = telegram.AnswerCallbackQuery(q.ID, "Введите встречную цену в чате", false)
@@ -322,4 +318,28 @@ func stripNonDigits(s string) string {
 		}
 	}
 	return sb.String()
+}
+
+// appendStatusLine — дорисовать строку «принято/отклонено» в сообщение продавца,
+// удалив inline-кнопки (передаём nil markup, тем самым стирая клавиатуру).
+//
+// Telegram даёт editMessageText для текстовых сообщений и editMessageCaption
+// для photo/video — у них разные поля (text vs caption), и попытка отредактить
+// чужой тип молча возвращает ошибку. Выбираем по тому, что Telegram прислал
+// нам в callback: если есть Caption — это photo/video, иначе text.
+func appendStatusLine(m *Message, line string) {
+	if m == nil {
+		return
+	}
+	if m.Caption != "" {
+		newCap := m.Caption + line
+		if err := telegram.EditMessageCaption(m.Chat.ID, m.MessageID, newCap, nil); err != nil {
+			log.Printf("appendStatusLine caption: %v", err)
+		}
+		return
+	}
+	newText := m.Text + line
+	if err := telegram.EditMessageText(m.Chat.ID, m.MessageID, newText, nil); err != nil {
+		log.Printf("appendStatusLine text: %v", err)
+	}
 }

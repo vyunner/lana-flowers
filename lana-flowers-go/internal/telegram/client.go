@@ -118,6 +118,8 @@ func SendPhoto(req SendPhotoReq) (*SentMessage, error) {
 }
 
 // EditMessageText — обновить текст уже отправленного сообщения (например, чтобы убрать кнопки после ответа).
+//
+// Работает ТОЛЬКО для текстовых сообщений. Для photo/video используй EditMessageCaption.
 func EditMessageText(chatID any, messageID int64, text string, markup *InlineKeyboardMarkup) error {
 	body := map[string]any{
 		"chat_id":    chatID,
@@ -133,6 +135,31 @@ func EditMessageText(chatID any, messageID int64, text string, markup *InlineKey
 		Desc string `json:"description"`
 	}
 	if err := call("editMessageText", body, &resp); err != nil {
+		return err
+	}
+	if !resp.OK {
+		return fmt.Errorf("telegram: %s", resp.Desc)
+	}
+	return nil
+}
+
+// EditMessageCaption — обновить подпись у photo/video сообщения.
+// Аналог EditMessageText для медиа-сообщений (у них нет text, есть caption).
+func EditMessageCaption(chatID any, messageID int64, caption string, markup *InlineKeyboardMarkup) error {
+	body := map[string]any{
+		"chat_id":    chatID,
+		"message_id": messageID,
+		"caption":    caption,
+		"parse_mode": "HTML",
+	}
+	if markup != nil {
+		body["reply_markup"] = markup
+	}
+	var resp struct {
+		OK   bool   `json:"ok"`
+		Desc string `json:"description"`
+	}
+	if err := call("editMessageCaption", body, &resp); err != nil {
 		return err
 	}
 	if !resp.OK {

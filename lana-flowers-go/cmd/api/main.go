@@ -53,7 +53,7 @@ func main() {
 	defer conn.Close()
 
 	r := gin.New()
-	r.Use(gin.Recovery())
+	r.Use(gin.Logger(), gin.Recovery())
 	_ = r.SetTrustedProxies(nil)
 
 	r.Use(cors.New(cors.Config{
