@@ -35,14 +35,19 @@ type BouquetMini struct {
 	Photo string `json:"photo"` // url первой фотки или ""
 }
 
-// Counterparty — данные «второй стороны». Phone не пусто ТОЛЬКО для принятых
-// сделок (status='accepted'). Это контракт приватности — телефон раскрывается
-// только когда сделка состоялась.
+// Counterparty — данные «второй стороны». Phone и Username не пусты ТОЛЬКО
+// для принятых сделок (status='accepted'). Это контракт приватности —
+// контакты раскрываются только когда сделка состоялась.
+//
+// Username нужен фронту чтобы открыть чат в Telegram через t.me/<username>:
+// открытие чата по номеру телефона через ссылку Telegram не поддерживает,
+// без username кнопку «Telegram» во фронте показывать нет смысла.
 type Counterparty struct {
 	UserID    string `json:"user_id"`
 	Name      string `json:"name"`
 	AvatarURL string `json:"avatar_url,omitempty"`
 	Phone     string `json:"phone,omitempty"`
+	Username  string `json:"username,omitempty"`
 }
 
 // ListSent — мои отправленные офферы (я как покупатель в этом оффере).
@@ -76,8 +81,8 @@ func listOffers(c *gin.Context, db *sql.DB, role string) {
 
 	statusFilter := c.Query("status")
 
-	// JOIN'им букет (для title/photo) и контрагента (имя/аватар/телефон).
-	// Phone отдаём ТОЛЬКО если status='accepted' — иначе пустая строка.
+	// JOIN'им букет (для title/photo) и контрагента (имя/аватар/телефон/юзернейм).
+	// Phone и username отдаём ТОЛЬКО если status='accepted' — иначе пустые строки.
 	q := `
 		SELECT o.id, o.bouquet_id, o.buyer_id, o.seller_id, o.price,
 		       o.status, o.parent_id, o.created_at,
@@ -87,7 +92,8 @@ func listOffers(c *gin.Context, db *sql.DB, role string) {
 		       cp.user_id,
 		       COALESCE(NULLIF(cp.display_name, ''), TRIM(CONCAT(cp.first_name, ' ', cp.last_name))) AS cp_name,
 		       COALESCE(cp.avatar_url, ''),
-		       CASE WHEN o.status = '` + OfferAccepted + `' THEN COALESCE(cp.phone_number, '') ELSE '' END AS cp_phone
+		       CASE WHEN o.status = '` + OfferAccepted + `' THEN COALESCE(cp.phone_number, '') ELSE '' END AS cp_phone,
+		       CASE WHEN o.status = '` + OfferAccepted + `' THEN COALESCE(cp.username, '') ELSE '' END AS cp_username
 		FROM offers o
 		JOIN bouquets b ON b.id = o.bouquet_id
 		JOIN users cp ON cp.user_id = ` + otherField + `
@@ -116,7 +122,7 @@ func listOffers(c *gin.Context, db *sql.DB, role string) {
 			&o.Status, &parent, &o.CreatedAt, &o.RespondedAt,
 			&o.Bouquet.Title, &o.Bouquet.Price, &o.Bouquet.Photo,
 			&o.Counterparty.UserID, &o.Counterparty.Name, &o.Counterparty.AvatarURL,
-			&o.Counterparty.Phone,
+			&o.Counterparty.Phone, &o.Counterparty.Username,
 		); err != nil {
 			continue
 		}

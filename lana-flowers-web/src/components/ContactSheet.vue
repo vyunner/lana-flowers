@@ -6,40 +6,51 @@ import BaseSheet from './base/BaseSheet.vue'
 
 const props = defineProps({
   open: { type: Boolean, required: true },
-  // counterparty = { name, avatar_url, phone } (phone обязателен — sheet
-  // открывается ТОЛЬКО для accepted-сделок, где бэк отдал телефон)
+  // counterparty = { name, avatar_url, phone, username } (phone обязателен —
+  // sheet открывается ТОЛЬКО для accepted-сделок, где бэк отдал контакты;
+  // username — необязателен, многие юзеры в KZ без @username)
   counterparty: { type: Object, default: null },
 })
 defineEmits(['close'])
 
 const phoneClean = computed(() => (props.counterparty?.phone || '').replace(/\D/g, ''))
 const phoneDisplay = computed(() => formatPhoneKz(props.counterparty?.phone || ''))
+const telHref = computed(() => 'tel:+' + phoneClean.value)
+const waHref = computed(() => 'https://wa.me/' + phoneClean.value)
+const username = computed(() => (props.counterparty?.username || '').trim())
+const hasTelegram = computed(() => !!username.value)
 
-function openLink(url, hap = 'light') {
-  haptic(hap)
+function onTelTap() {
+  // Не вызываем preventDefault и не делаем window.location — браузер сам
+  // обработает <a href="tel:..."> и откроет диалер. window.location в
+  // Telegram WebView может не пробросить tel:-схему наружу.
+  haptic('medium')
+}
+
+function onWhatsAppTap(e) {
+  // wa.me — это https, надёжнее открыть через Telegram openLink (не схлопывает
+  // мини-апп), а не дефолтом по href. preventDefault'им навигацию.
+  e.preventDefault()
+  haptic('light')
   if (tg && typeof tg.openLink === 'function') {
-    tg.openLink(url)
+    tg.openLink(waHref.value)
   } else {
-    window.open(url, '_blank')
+    window.open(waHref.value, '_blank')
   }
 }
 
-function openTel() {
-  haptic('medium')
-  // tel: — Telegram WebApp openLink не любит non-https, fallback на window.
-  window.location.href = 'tel:+' + phoneClean.value
-}
-
-function openWhatsApp() {
-  openLink('https://wa.me/' + phoneClean.value)
-}
-
 function openTelegram() {
+  if (!hasTelegram.value) return
   haptic('light')
+  const url = 'https://t.me/' + username.value.replace(/^@/, '')
+  // openTelegramLink — нативный путь открыть чат с юзером по @username.
+  // Открытие чата по НОМЕРУ ТЕЛЕФОНА через t.me/+<phone> не поддерживается
+  // (этот формат — invite-link для групп), поэтому если username пустой —
+  // кнопка вообще скрыта.
   if (tg && typeof tg.openTelegramLink === 'function') {
-    tg.openTelegramLink('https://t.me/+' + phoneClean.value)
+    tg.openTelegramLink(url)
   } else {
-    window.open('https://t.me/+' + phoneClean.value, '_blank')
+    window.open(url, '_blank')
   }
 }
 </script>
@@ -57,21 +68,24 @@ function openTelegram() {
       <div class="phone">{{ phoneDisplay }}</div>
     </div>
 
-    <div class="actions">
-      <button class="act primary" type="button" @click="openTel">
+    <div class="actions" :class="{ 'two-cols': !hasTelegram }">
+      <!-- Анкор, не button: tel:-схема надёжнее проходит через нативный
+           обработчик когда браузер сам обрабатывает href, чем через JS
+           window.location (Telegram WebView может блокировать). -->
+      <a class="act primary" :href="telHref" @click="onTelTap">
         <svg viewBox="0 0 24 24" fill="none">
           <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.37 1.9.72 2.8a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.9.35 1.84.59 2.8.72A2 2 0 0122 16.92z"
             stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
         </svg>
         Позвонить
-      </button>
-      <button class="act" type="button" @click="openWhatsApp">
+      </a>
+      <a class="act" :href="waHref" @click="onWhatsAppTap">
         <svg viewBox="0 0 24 24" fill="currentColor" style="color:#25d366">
           <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.297-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.71.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.464 3.488"/>
         </svg>
         WhatsApp
-      </button>
-      <button class="act" type="button" @click="openTelegram">
+      </a>
+      <button v-if="hasTelegram" class="act" type="button" @click="openTelegram">
         <svg viewBox="0 0 24 24" fill="currentColor" style="color:#229ED9">
           <path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.24 3.64 11.95c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.7L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/>
         </svg>
@@ -113,6 +127,10 @@ function openTelegram() {
   gap: 8px;
   margin-bottom: 12px;
 }
+.actions.two-cols {
+  /* Без Telegram-кнопки — Позвонить и WhatsApp ровно пополам. */
+  grid-template-columns: 1fr 1fr;
+}
 .act {
   display: flex;
   flex-direction: column;
@@ -125,6 +143,7 @@ function openTelegram() {
   border: 0;
   font-size: 12px;
   font-weight: 600;
+  text-decoration: none; /* <a> теперь тоже .act — снимаем подчёркивание */
   transition: transform 0.1s, background 0.15s;
 }
 .act:active { transform: scale(0.96); background: var(--border); }

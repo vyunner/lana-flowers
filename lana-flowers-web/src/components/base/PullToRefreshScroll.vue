@@ -79,6 +79,11 @@ function onScroll(e) {
   flex: 1;
   overflow-y: auto;
   overscroll-behavior-y: contain;
+  /* touch-action: pan-y — критично для PTR. Без него iOS/Safari при
+     scrollTop=0 интерпретирует свайп вниз как нативный overscroll/rubber-band
+     и перестаёт стрелять touchmove'ом в JS, наш handler не успевает поймать
+     движение. С pan-y браузер передаёт нам вертикальный жест целиком. */
+  touch-action: pan-y;
 }
 .inner {
   position: relative; /* якорь для absolute .ptr */
