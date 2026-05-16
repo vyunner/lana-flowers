@@ -305,7 +305,11 @@ func handleReply(db *sql.DB, m *Message) {
 		return
 	}
 
-	newID, err := offers.CounterOffer(db, offerID, userID, price, m.Text)
+	// m.Text — это обычно просто число «11500», смысла хранить в БД-поле
+	// `message` нет (получается бессмысленная запись с цифрами). Если
+	// юзер захочет писать комментарий — добавим UI-поле в OfferSheet и
+	// прокинем через respondOffer, тогда message будет осмысленный.
+	newID, err := offers.CounterOffer(db, offerID, userID, price, "")
 	if err != nil {
 		_, _ = telegram.SendMessage(telegram.SendMessageReq{
 			ChatID: m.Chat.ID,
@@ -323,7 +327,7 @@ func handleReply(db *sql.DB, m *Message) {
 	go telegram.NotifyOfferCountered(
 		origCtx.BuyerID, newID, origCtx.BouquetID, origCtx.BouquetTitle, origCtx.BouquetPhoto,
 		origCtx.Price, price,
-		origCtx.SellerName, m.Text,
+		origCtx.SellerName, "", // см. CounterOffer выше — message пустой
 	)
 }
 
