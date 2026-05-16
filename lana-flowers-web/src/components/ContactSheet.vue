@@ -35,10 +35,20 @@ function openTelegram() {
   if (!hasTelegram.value) return
   haptic('light')
   const url = 'https://t.me/' + username.value.replace(/^@/, '')
-  // openTelegramLink — нативный путь открыть чат по @username. Открытие
-  // чата по НОМЕРУ через ссылки Telegram не поддерживается, поэтому если
-  // username пустой — кнопка вообще скрыта.
-  if (tg && typeof tg.openTelegramLink === 'function') {
+
+  // На десктопных клиентах (Telegram macOS / Telegram Desktop) метод
+  // openTelegramLink молча ничего не делает по нашему фидбэку. openLink
+  // надёжнее: открывает t.me в внешнем браузере, оттуда система запускает
+  // Telegram-приложение. На мобиле остаётся openTelegramLink — это
+  // нативный путь, сразу открывает чат без браузера.
+  //
+  // tg.platform: 'ios' | 'android' | 'macos' | 'tdesktop' | 'web' | 'weba' | 'webk' | 'unknown'
+  const platform = tg?.platform || ''
+  const useExternalBrowser = platform === 'macos' || platform === 'tdesktop'
+
+  if (useExternalBrowser && typeof tg?.openLink === 'function') {
+    tg.openLink(url)
+  } else if (typeof tg?.openTelegramLink === 'function') {
     tg.openTelegramLink(url)
   } else {
     window.open(url, '_blank')
