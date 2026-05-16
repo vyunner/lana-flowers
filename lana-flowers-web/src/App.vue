@@ -8,7 +8,7 @@ import TopBar from './components/TopBar.vue'
 import CategoryChips from './components/CategoryChips.vue'
 import BouquetGrid from './components/BouquetGrid.vue'
 import BottomNav from './components/BottomNav.vue'
-import Placeholder from './components/Placeholder.vue'
+import Deals from './components/Deals.vue'
 import Profile from './components/Profile.vue'
 import CitySheet from './components/CitySheet.vue'
 import SellSheet from './components/SellSheet.vue'
@@ -16,10 +16,31 @@ import OfferSheet from './components/OfferSheet.vue'
 import OnboardingPhone from './components/OnboardingPhone.vue'
 import OnboardingName from './components/OnboardingName.vue'
 import OnboardingAvatar from './components/OnboardingAvatar.vue'
+import { tg } from './telegram'
 
 const authReady = ref(false)
 
+// pendingCounterOfferId — если мини-апп открыт из бота кнопкой «Встречно»,
+// бот зашивает offerID в URL ?counter=N или в start_param. Передаём в Deals,
+// он откроет нужную модалку как только подгрузит список.
+const pendingCounterOfferId = ref(null)
+
+function readDeepLink() {
+  // 1) ?counter=N в URL (inline web_app кнопка из бота)
+  const urlParam = new URLSearchParams(window.location.search).get('counter')
+  if (urlParam) {
+    pendingCounterOfferId.value = urlParam
+    return
+  }
+  // 2) start_param через t.me/<bot>?startapp=counter_N (direct link)
+  const sp = tg?.initDataUnsafe?.start_param
+  if (sp && sp.startsWith('counter_')) {
+    pendingCounterOfferId.value = sp.slice('counter_'.length)
+  }
+}
+
 onMounted(async () => {
+  readDeepLink()
   try {
     const u = await getMe()
     setMe(u)
@@ -31,7 +52,14 @@ onMounted(async () => {
 })
 
 // ---- Tabs ----
-const activeTab = ref('catalog')
+// Если открыли через deeplink на counter — стартуем сразу на «Сделках»
+const activeTab = ref(pendingCounterOfferId.value ? 'deals' : 'catalog')
+
+// Бейдж: количество офферов ждущих ответа от меня (sets by Deals on load)
+const dealsActionable = ref(0)
+function onDealsUpdated(n) {
+  dealsActionable.value = n
+}
 
 // ---- Category ----
 const activeCategory = ref('all')
@@ -51,6 +79,7 @@ function selectCity(c) {
 // ---- Refs to children ----
 const gridRef = ref(null)
 const profileRef = ref(null)
+const dealsRef = ref(null)
 
 // ---- Sell sheet ----
 const sellOpen = ref(false)
@@ -75,6 +104,8 @@ function onOfferSubmitted() {
   // Освежаем ленту чтобы карточка получила бейдж «Предложено».
   gridRef.value?.refresh?.()
   profileRef.value?.refresh?.()
+  // Сделки тоже — у юзера появилась новая отправленная.
+  dealsRef.value?.refresh?.()
 }
 
 // ---- Navbar collapse on scroll ----
@@ -126,16 +157,22 @@ function selectTab(t) {
         />
       </div>
 
-      <Placeholder
-        v-show="activeTab === 'messages'"
-        icon="messages"
-        subtitle="Чаты с продавцами появятся в следующем билде"
+      <Deals
+        v-show="activeTab === 'deals'"
+        ref="dealsRef"
+        :pending-counter-offer-id="pendingCounterOfferId"
+        @deals-updated="onDealsUpdated"
       />
 
       <Profile v-show="activeTab === 'profile'" ref="profileRef" />
     </div>
 
-    <BottomNav :active="activeTab" :collapsed="navCollapsed" @select="selectTab" />
+    <BottomNav
+      :active="activeTab"
+      :collapsed="navCollapsed"
+      :deals-badge="dealsActionable"
+      @select="selectTab"
+    />
 
     <CitySheet
       :open="cityOpen"

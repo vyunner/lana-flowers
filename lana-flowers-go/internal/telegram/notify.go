@@ -70,7 +70,9 @@ func NotifyNewOffer(sellerTGID string, offerID, bouquetID int64, bouquetTitle, b
 				{Text: fmt.Sprintf("✅ Принять %s ₸", formatPrice(offerPrice)), CallbackData: fmt.Sprintf("offer:%d:accept", offerID)},
 			},
 			{
-				{Text: "🔄 Встречно", CallbackData: fmt.Sprintf("offer:%d:counter", offerID)},
+				// «Встречно» → открывает мини-апп c deeplink'ом на нужный оффер,
+				// чтобы юзер юзал красивый ползунок в app, а не ForceReply в чате.
+				{Text: "🔄 Встречно", WebApp: &WebAppInfo{URL: counterDeepLink(offerID)}},
 				{Text: "❌ Отклонить", CallbackData: fmt.Sprintf("offer:%d:reject", offerID)},
 			},
 		},
@@ -79,6 +81,15 @@ func NotifyNewOffer(sellerTGID string, offerID, bouquetID int64, bouquetTitle, b
 	if err := sendOfferNotification(chatID, bouquetPhoto, text, markup); err != nil {
 		log.Printf("notify NewOffer chat=%d: %v", chatID, err)
 	}
+}
+
+// counterDeepLink — URL мини-аппа с query-параметром, который фронт распарсит
+// и сразу откроет counter-модалку на нужном оффере. Менять URL — только синхронно
+// с фронтом (App.vue читает ?counter=...).
+const miniAppOrigin = "https://lana-flowers.vercel.app"
+
+func counterDeepLink(offerID int64) string {
+	return fmt.Sprintf("%s/?counter=%d", miniAppOrigin, offerID)
 }
 
 // sendOfferNotification — общая отправка: с фоткой через sendPhoto если URL есть,
@@ -191,7 +202,7 @@ func NotifyOfferCountered(buyerTGID string, newOfferID, bouquetID int64, bouquet
 				{Text: fmt.Sprintf("✅ Принять %s ₸", formatPrice(newPrice)), CallbackData: fmt.Sprintf("offer:%d:accept", newOfferID)},
 			},
 			{
-				{Text: "🔄 Встречно", CallbackData: fmt.Sprintf("offer:%d:counter", newOfferID)},
+				{Text: "🔄 Встречно", WebApp: &WebAppInfo{URL: counterDeepLink(newOfferID)}},
 				{Text: "❌ Отклонить", CallbackData: fmt.Sprintf("offer:%d:reject", newOfferID)},
 			},
 		},

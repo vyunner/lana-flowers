@@ -2,12 +2,14 @@
 const props = defineProps({
   active: { type: String, required: true },
   collapsed: { type: Boolean, default: false },
+  // dealsBadge — сколько pending-офферов ждут ответа от меня. 0 = нет точки.
+  dealsBadge: { type: Number, default: 0 },
 })
 defineEmits(['select'])
 
 const tabs = [
   { key: 'catalog', label: 'Каталог' },
-  { key: 'messages', label: 'Сообщения' },
+  { key: 'deals', label: 'Сделки' },
   { key: 'profile', label: 'Профиль' },
 ]
 
@@ -39,8 +41,8 @@ const activeIndex = () => tabs.findIndex((t) => t.key === props.active)
         </g>
         <circle cx="14" cy="14" r="2.4" :fill="active === 'catalog' ? 'var(--nav-active-bg)' : 'var(--nav-bg)'" />
       </svg>
-      <!-- messages -->
-      <svg v-else-if="tab.key === 'messages'" viewBox="0 0 28 28" fill="none">
+      <!-- deals — рукопожатие (упрощённое: две скруглённые скобки/палочки) -->
+      <svg v-else-if="tab.key === 'deals'" viewBox="0 0 28 28" fill="none">
         <path
           d="M5 9.5a3.5 3.5 0 013.5-3.5h11A3.5 3.5 0 0123 9.5v7a3.5 3.5 0 01-3.5 3.5H12l-4.5 3.5V20H8.5A3.5 3.5 0 015 16.5v-7z"
           stroke="currentColor"
@@ -48,6 +50,9 @@ const activeIndex = () => tabs.findIndex((t) => t.key === props.active)
           stroke-linejoin="round"
         />
       </svg>
+      <span v-if="tab.key === 'deals' && dealsBadge > 0" class="badge">
+        {{ dealsBadge > 9 ? '9+' : dealsBadge }}
+      </span>
       <!-- profile -->
       <svg v-else viewBox="0 0 28 28" fill="none">
         <circle cx="14" cy="10.5" r="4.2" stroke="currentColor" stroke-width="1.7" />
@@ -134,5 +139,25 @@ const activeIndex = () => tabs.findIndex((t) => t.key === props.active)
   z-index: 0;
   transition: transform 0.3s cubic-bezier(0.65, 0, 0.35, 1);
   pointer-events: none;
+}
+
+/* Бейдж — красная капля в верхнем правом углу таба «Сделки» */
+.badge {
+  position: absolute;
+  top: 6px;
+  right: 18px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  /* поверх индикатора и svg */
+  z-index: 2;
 }
 </style>
