@@ -56,14 +56,24 @@ func (h *Hub) Subscribe(userID string) (<-chan Event, func()) {
 
 	cleanup := func() {
 		h.mu.Lock()
-		if set, ok := h.subs[userID]; ok {
-			delete(set, ch)
-			if len(set) == 0 {
-				delete(h.subs, userID)
+		set, ok := h.subs[userID]
+		present := false
+		if ok {
+			if _, p := set[ch]; p {
+				present = true
+				delete(set, ch)
+				if len(set) == 0 {
+					delete(h.subs, userID)
+				}
 			}
 		}
 		h.mu.Unlock()
-		close(ch)
+		// Закрываем канал только если МЫ ещё его не удалили — иначе
+		// CloseAll уже закрыл (graceful shutdown), повторный close панику
+		// дал бы.
+		if present {
+			close(ch)
+		}
 	}
 	return ch, cleanup
 }
@@ -83,6 +93,23 @@ func (h *Hub) Publish(userID string, e Event) {
 		default:
 			log.Printf("events: dropped %s for %s (subscriber buffer full)", e.Type, userID)
 		}
+	}
+}
+
+// CloseAll — закрывает все каналы подписчиков. Используется при graceful
+// shutdown'е, чтобы SSE-handler'ы вышли из своих for-select циклов и
+// http.Server.Shutdown не висел в ожидании long-lived соединений.
+//
+// После вызова Subscribe всё равно работает (новые подписки идут в новый
+// набор) — но в shutdown-сценарии новых подписок уже не будет.
+func (h *Hub) CloseAll() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for uid, set := range h.subs {
+		for ch := range set {
+			close(ch)
+		}
+		delete(h.subs, uid)
 	}
 }
 

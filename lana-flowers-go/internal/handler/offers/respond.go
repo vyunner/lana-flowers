@@ -13,7 +13,7 @@ import (
 )
 
 type respondReq struct {
-	Action  string `json:"action" binding:"required"` // accept | reject | counter | cancel
+	Action  string `json:"action" binding:"required"` // accept | reject | counter | cancel | withdraw
 	Price   int64  `json:"price"`                     // обязательно для counter
 	Message string `json:"message"`
 }
@@ -116,8 +116,25 @@ func Respond(c *gin.Context, db *sql.DB) {
 		})
 		response.OK(c, gin.H{"status": "cancelled"})
 
+	case "withdraw":
+		wCtx, err := WithdrawOwnPending(db, offerID, uid)
+		if err != nil {
+			serviceErr(c, err)
+			return
+		}
+		// Уведомляем продавца — оффер исчез из его inbox'а.
+		events.Default().Publish(wCtx.SellerID, events.Event{
+			Type: events.TypeOfferCancelled, OfferID: offerID,
+			BouquetTitle: wCtx.BouquetTitle, Price: wCtx.Price,
+		})
+		// В Telegram-DM продавцу тоже летим — иначе он не узнает, увидит
+		// «пустоту» в inbox'е без объяснений.
+		go telegram.NotifyDealCancelled(wCtx.SellerID, wCtx.BouquetTitle, wCtx.Price, true)
+		response.OK(c, gin.H{"status": "withdrawn"})
+
 	default:
-		response.Err(c, http.StatusBadRequest, "BAD_ACTION", "action must be accept|reject|counter|cancel")
+		response.Err(c, http.StatusBadRequest, "BAD_ACTION",
+			"action must be accept|reject|counter|cancel|withdraw")
 	}
 }
 
@@ -146,6 +163,8 @@ func serviceErr(c *gin.Context, err error) {
 		response.Err(c, http.StatusBadRequest, "OFFER_NOT_PENDING", err.Error())
 	case errors.Is(err, ErrInvalidPrice):
 		response.Err(c, http.StatusBadRequest, "BAD_PRICE", err.Error())
+	case errors.Is(err, ErrCounterChainTooLong):
+		response.Err(c, http.StatusConflict, "COUNTER_CHAIN_TOO_LONG", err.Error())
 	default:
 		response.Err(c, http.StatusInternalServerError, "DB_ERROR", err.Error())
 	}

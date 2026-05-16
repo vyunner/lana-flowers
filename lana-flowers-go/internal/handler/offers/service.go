@@ -26,15 +26,21 @@ const (
 )
 
 var (
-	ErrOfferNotFound   = errors.New("offer not found")
-	ErrNotSeller       = errors.New("not your offer (you are not the seller)")
-	ErrOfferNotPending = errors.New("offer is not pending")
-	ErrInvalidPrice    = errors.New("price must be > 0")
-	ErrSelfOffer       = errors.New("cannot offer on your own bouquet")
-	ErrBouquetInactive = errors.New("bouquet is not active")
-	ErrBouquetNotFound = errors.New("bouquet not found")
-	ErrPendingExists   = errors.New("у вас уже есть активное предложение на этот букет")
+	ErrOfferNotFound      = errors.New("offer not found")
+	ErrNotSeller          = errors.New("not your offer (you are not the seller)")
+	ErrOfferNotPending    = errors.New("offer is not pending")
+	ErrInvalidPrice       = errors.New("price must be > 0")
+	ErrSelfOffer          = errors.New("cannot offer on your own bouquet")
+	ErrBouquetInactive    = errors.New("bouquet is not active")
+	ErrBouquetNotFound    = errors.New("bouquet not found")
+	ErrPendingExists      = errors.New("у вас уже есть активное предложение на этот букет")
+	ErrCounterChainTooLong = errors.New("слишком длинная цепочка торга — примите или отклоните")
 )
+
+// MaxCounterDepth — сколько встречек подряд можно прислать. После этого
+// бэк говорит «дальше уже только accept/reject», иначе цепочки разрастаются
+// в бесконечную «ленту переписки» и засоряют БД.
+const MaxCounterDepth = 10
 
 // OfferContext — данные оффера, которые нужны и handler'у, и notify-функциям.
 type OfferContext struct {
@@ -188,6 +194,38 @@ func AcceptOffer(db *sql.DB, offerID int64, sellerID string) (expired []int64, e
 	return expired, nil
 }
 
+// WithdrawOwnPending — покупатель забирает СВОЙ pending-оффер (передумал).
+// Доступно только покупателю (buyer_id == userID) и только пока pending.
+// Букет НЕ трогаем — он остался активным, другие покупатели могут предлагать.
+func WithdrawOwnPending(db *sql.DB, offerID int64, userID string) (*OfferContext, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	ctx, err := loadContext(tx, offerID, true)
+	if err != nil {
+		return nil, err
+	}
+	if ctx.BuyerID != userID {
+		return nil, ErrNotSeller // переиспользуем «вы не сторона сделки»
+	}
+	if ctx.Status != OfferPending {
+		return nil, ErrOfferNotPending
+	}
+	if _, err := tx.Exec(
+		`UPDATE offers SET status = $2, responded_at = NOW() WHERE id = $1`,
+		offerID, OfferCancelled,
+	); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return ctx, nil
+}
+
 // CancelAcceptedOffer — «сделка не состоялась». Может вызвать любая сторона
 // (buyer или seller) на оффере в статусе accepted. Возвращает букет в активные.
 //
@@ -278,6 +316,24 @@ func CounterOffer(db *sql.DB, offerID int64, sellerID string, newPrice int64, me
 	}
 	if ctx.Status != OfferPending {
 		return 0, ErrOfferNotPending
+	}
+
+	// Лимит глубины counter-chain — считаем длину цепочки через parent_id
+	// до корневого оффера. Без лимита юзеры могут бесконечно торговаться
+	// (а каждый шаг — это INSERT с join'ами).
+	var depth int
+	if err := tx.QueryRow(`
+		WITH RECURSIVE chain AS (
+			SELECT id, parent_id FROM offers WHERE id = $1
+			UNION ALL
+			SELECT o.id, o.parent_id FROM offers o JOIN chain c ON o.id = c.parent_id
+		)
+		SELECT COUNT(*) FROM chain
+	`, offerID).Scan(&depth); err != nil {
+		return 0, err
+	}
+	if depth >= MaxCounterDepth {
+		return 0, ErrCounterChainTooLong
 	}
 
 	// Закрываем ВСЕ pending-офферы между этой парой (buyer↔seller) на этом букете,

@@ -42,6 +42,7 @@ func formatPrice(n int64) string {
 // bouquetPhoto — URL первой картинки. Если пустой, шлём просто текст;
 // иначе картинка с caption (так выглядит как нормальная карточка маркетплейса).
 func NotifyNewOffer(sellerTGID string, offerID, bouquetID int64, bouquetTitle, bouquetPhoto string, sellerPrice, offerPrice int64, buyerName, message string) {
+	defer trackEnd(trackStart())
 	chatID, err := strconv.ParseInt(sellerTGID, 10, 64)
 	if err != nil {
 		log.Printf("notify: bad sellerTGID %q: %v", sellerTGID, err)
@@ -116,6 +117,7 @@ func sendOfferNotification(chatID int64, photoURL, text string, markup *InlineKe
 // Контакт продавца НЕ шлём в текст (ни @username, ни t.me-ссылку).
 // Координация по доставке — внутри приложения (раздел «Сообщения»).
 func NotifyOfferAccepted(buyerTGID string, bouquetTitle string, finalPrice int64, sellerName string) {
+	defer trackEnd(trackStart())
 	chatID, err := strconv.ParseInt(buyerTGID, 10, 64)
 	if err != nil {
 		return
@@ -142,6 +144,7 @@ func NotifyOfferAccepted(buyerTGID string, bouquetTitle string, finalPrice int64
 // Получатель — противоположная сторона. iAmBuyer = true означает: инициатор
 // отмены был покупатель, значит DM летит ПРОДАВЦУ (получатель не он сам).
 func NotifyDealCancelled(toTGID string, bouquetTitle string, finalPrice int64, initiatedByBuyer bool) {
+	defer trackEnd(trackStart())
 	chatID, err := strconv.ParseInt(toTGID, 10, 64)
 	if err != nil {
 		return
@@ -166,6 +169,7 @@ func NotifyDealCancelled(toTGID string, bouquetTitle string, finalPrice int64, i
 // NotifyOfferExpired — покупателю что его pending-оффер заэкспайрился,
 // потому что продавец принял другое предложение на тот же букет.
 func NotifyOfferExpired(buyerTGID, bouquetTitle string, offerPrice int64) {
+	defer trackEnd(trackStart())
 	chatID, err := strconv.ParseInt(buyerTGID, 10, 64)
 	if err != nil {
 		return
@@ -185,6 +189,7 @@ func NotifyOfferExpired(buyerTGID, bouquetTitle string, offerPrice int64) {
 
 // NotifyOfferRejected — продавец отклонил.
 func NotifyOfferRejected(buyerTGID string, bouquetTitle string, offeredPrice int64) {
+	defer trackEnd(trackStart())
 	chatID, err := strconv.ParseInt(buyerTGID, 10, 64)
 	if err != nil {
 		return
@@ -209,6 +214,7 @@ func NotifyOfferRejected(buyerTGID string, bouquetTitle string, offeredPrice int
 //
 // @username продавца не показываем — приватные данные.
 func NotifyOfferCountered(buyerTGID string, newOfferID, bouquetID int64, bouquetTitle, bouquetPhoto string, oldPrice, newPrice int64, sellerName, message string) {
+	defer trackEnd(trackStart())
 	chatID, err := strconv.ParseInt(buyerTGID, 10, 64)
 	if err != nil {
 		return

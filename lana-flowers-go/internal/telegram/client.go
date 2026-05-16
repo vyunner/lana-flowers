@@ -9,8 +9,43 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 )
+
+// pendingNotifs — счётчик in-flight notify-горутин. Все Notify*-функции
+// inc'ают перед стартом своей работы (или вызовом в горутине) и
+// dec'ают по завершению. WaitNotifications() в shutdown даёт им долететь.
+var pendingNotifs sync.WaitGroup
+
+// trackStart должна вызываться в начале каждой Notify*-функции, чтобы
+// WaitNotifications мог их дождаться при graceful shutdown. Используется
+// `defer trackEnd()` сразу после.
+//
+// Реализация в notify.go каждая функция оборачивается:
+//   func NotifyXxx(...) { defer trackEnd(trackStart()); ... }
+func trackStart() struct{} {
+	pendingNotifs.Add(1)
+	return struct{}{}
+}
+func trackEnd(struct{}) { pendingNotifs.Done() }
+
+// WaitNotifications ждёт окончания всех in-flight notify-горутин до
+// timeout'а. Возвращает true если всё успели, false если по таймауту
+// сдались (часть нотификаций потеряется при таком завершении).
+func WaitNotifications(timeout time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		pendingNotifs.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
+}
 
 const apiBase = "https://api.telegram.org/bot"
 

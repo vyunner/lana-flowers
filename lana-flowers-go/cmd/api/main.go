@@ -15,6 +15,7 @@ import (
 
 	"lana-flowers-go/internal/auth"
 	dbpkg "lana-flowers-go/internal/db"
+	"lana-flowers-go/internal/events"
 	"lana-flowers-go/internal/handler/bouquets"
 	eventshandler "lana-flowers-go/internal/handler/events"
 	"lana-flowers-go/internal/handler/offers"
@@ -22,6 +23,7 @@ import (
 	"lana-flowers-go/internal/handler/users"
 	"lana-flowers-go/internal/handler/webhook"
 	"lana-flowers-go/internal/response"
+	"lana-flowers-go/internal/telegram"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -92,6 +94,14 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
 
+	// Background-воркер: ставит pending-офферы старше 7 дней в expired
+	// и шлёт DM/SSE покупателям. Без него inbox продавца раздувается
+	// мёртвыми предложениями годами. Останавливается через workerCtx
+	// при shutdown.
+	workerCtx, stopWorkers := context.WithCancel(context.Background())
+	defer stopWorkers()
+	offers.StartPendingExpireWorker(workerCtx, conn)
+
 	// Webhook регистрируется ДО auth middleware — защищён secret_token'ом самого Telegram.
 	webhook.RegisterRoutes(r, conn)
 
@@ -123,11 +133,22 @@ func main() {
 	<-quit
 	log.Print("shutdown signal received")
 
+	// Останавливаем background-воркеров (expire-sweep) ДО srv.Shutdown
+	// чтобы они не открыли новые DB-транзакции в момент остановки.
+	stopWorkers()
+
+	// Закрываем все SSE-стримы — иначе srv.Shutdown висит весь таймаут
+	// в ожидании пока long-lived соединения закроются сами.
+	events.Default().CloseAll()
+
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("graceful shutdown failed: %v", err)
 	}
+	// Notify-горутины (telegram.Notify*) могут ещё лететь — дадим им
+	// шанс долететь до Telegram API ещё пару секунд.
+	telegram.WaitNotifications(3 * time.Second)
 	log.Print("server stopped")
 }
 

@@ -65,7 +65,12 @@ func Stream(c *gin.Context) {
 				return
 			}
 			c.Writer.Flush()
-		case e := <-ch:
+		case e, ok := <-ch:
+			if !ok {
+				// Hub закрыл канал (graceful shutdown) — стрим завершаем,
+				// клиент сам переподключится через EventSource auto-retry.
+				return
+			}
 			data, _ := json.Marshal(e)
 			if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
 				return

@@ -126,16 +126,32 @@ func UpdateMe(c *gin.Context, db *sql.DB) {
 
 	if req.DisplayName != nil {
 		name := strings.TrimSpace(*req.DisplayName)
-		if len(name) > 64 {
-			name = name[:64]
+		// Считаем по rune'ам, иначе кириллица обрезалась бы по байтам и
+		// получили бы битый UTF-8. Лимит 64 символа.
+		if rs := []rune(name); len(rs) > 64 {
+			name = string(rs[:64])
 		}
+		// Дополнительная зачистка: схлопываем подряд идущие пробелы/таб
+		// в одинарный пробел, чтобы юзер не мог сделать имя «          а».
+		name = strings.Join(strings.Fields(name), " ")
 		sets = append(sets, "display_name = $"+strconv.Itoa(idx))
 		args = append(args, name)
 		idx++
 	}
 	if req.AvatarURL != nil {
+		// Аватар принимаем либо пустой (юзер «удалил» фото) либо ссылку
+		// только на наш /uploads/... — иначе можно поставить avatar_url
+		// на трекинговый pixel или хост порно, и оно будет рендериться
+		// в карточках продавца.
+		av := strings.TrimSpace(*req.AvatarURL)
+		if av != "" && !strings.HasPrefix(av, "/uploads/") &&
+			!strings.HasPrefix(av, "https://64-226-107-161.nip.io/uploads/") {
+			response.Err(c, http.StatusBadRequest, "BAD_REQUEST",
+				"avatar must be from /upload")
+			return
+		}
 		sets = append(sets, "avatar_url = $"+strconv.Itoa(idx))
-		args = append(args, *req.AvatarURL)
+		args = append(args, av)
 		idx++
 	}
 	if req.OnboardingCompleted != nil {

@@ -11,6 +11,21 @@ import (
 	"github.com/lib/pq"
 )
 
+const (
+	maxTitleLen       = 120
+	maxDescriptionLen = 2000
+	maxPhotos         = 5
+)
+
+// allowedCategories — белый список. Категория сверяется с этим списком,
+// иначе можно создать букет с category="zalupa" и засрать БД мусором.
+// Должен совпадать с CATEGORIES в SellSheet.vue. Категория "all" =
+// «другое/смешанное» (sane default из фронта).
+var allowedCategories = map[string]bool{
+	"roses": true, "peonies": true, "wild": true,
+	"composition": true, "dried": true, "all": true,
+}
+
 type createReq struct {
 	Title       string   `json:"title" binding:"required"`
 	Description string   `json:"description"`
@@ -35,24 +50,54 @@ func Create(c *gin.Context, db *sql.DB) {
 	}
 
 	req.Title = strings.TrimSpace(req.Title)
+	req.Description = strings.TrimSpace(req.Description)
 	req.City = strings.TrimSpace(req.City)
+
 	if req.Title == "" || req.City == "" {
 		response.Err(c, http.StatusBadRequest, "BAD_REQUEST", "title and city are required")
+		return
+	}
+	if len([]rune(req.Title)) > maxTitleLen {
+		response.Err(c, http.StatusBadRequest, "BAD_REQUEST", "title too long")
+		return
+	}
+	if len([]rune(req.Description)) > maxDescriptionLen {
+		response.Err(c, http.StatusBadRequest, "BAD_REQUEST", "description too long")
 		return
 	}
 	if req.Price <= 0 {
 		response.Err(c, http.StatusBadRequest, "BAD_REQUEST", "price must be > 0")
 		return
 	}
+
 	if req.Category == "" {
 		req.Category = "all"
 	}
+	if !allowedCategories[req.Category] {
+		response.Err(c, http.StatusBadRequest, "BAD_REQUEST", "unknown category")
+		return
+	}
+
+	// Photos: только URL'ы на наш собственный /uploads/<userID>/...
+	// Без этой проверки можно прислать «photos: [evil.com/csam.jpg]» и
+	// фронт послушно вставит в каталог — юридический риск для C2C.
 	if req.Photos == nil {
 		req.Photos = []string{}
 	}
+	if len(req.Photos) > maxPhotos {
+		response.Err(c, http.StatusBadRequest, "BAD_REQUEST", "too many photos")
+		return
+	}
+	for _, p := range req.Photos {
+		if !isOwnUploadURL(p) {
+			response.Err(c, http.StatusBadRequest, "BAD_REQUEST",
+				"photos must come from /upload (внешние URL не разрешены)")
+			return
+		}
+	}
 
 	var id int64
-	err := db.QueryRow(`
+	err := db.QueryRowContext(c.Request.Context(), `
 		INSERT INTO bouquets (seller_id, title, description, price, city, photos, category)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
@@ -63,4 +108,24 @@ func Create(c *gin.Context, db *sql.DB) {
 	}
 
 	response.OK(c, gin.H{"id": id})
+}
+
+// isOwnUploadURL — фото должно быть из нашего /upload-эндпоинта:
+// абсолютный с нашим origin'ом ИЛИ относительный /uploads/<userID>/<file>.
+// Сейчас upload.go возвращает «/uploads/<uid>/<rand>.<ext>» как URL.
+func isOwnUploadURL(p string) bool {
+	if p == "" {
+		return false
+	}
+	// /uploads/... (наш formfat) или https://64-...nip.io/uploads/... либо
+	// наш собственный домен. Достаточно проверить что path начинается с
+	// /uploads/ — origin белый список проверяется через CORS.
+	if strings.HasPrefix(p, "/uploads/") {
+		return true
+	}
+	// Абсолютный URL: оставляем место для нашего домена в проде.
+	if strings.HasPrefix(p, "https://64-226-107-161.nip.io/uploads/") {
+		return true
+	}
+	return false
 }
