@@ -151,7 +151,7 @@ function roleLabel(o) {
 </script>
 
 <template>
-  <PullToRefreshScroll @refresh="load">
+  <PullToRefreshScroll :loader="load">
     <div class="deals-inner">
       <div class="filter">
         <button

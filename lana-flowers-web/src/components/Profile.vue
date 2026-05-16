@@ -69,7 +69,7 @@ function statusColor(s) {
 </script>
 
 <template>
-  <PullToRefreshScroll @refresh="loadAll">
+  <PullToRefreshScroll :loader="loadAll">
     <div class="profile-inner">
       <header class="profile-head">
         <div class="avatar" :class="{ 'is-placeholder': !userPhoto }">

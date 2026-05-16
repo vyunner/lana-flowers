@@ -8,19 +8,36 @@ import { usePullToRefresh } from '../../composables/usePullToRefresh'
 // translateY-привязки).
 //
 // API:
-//   <PullToRefreshScroll @refresh="loadData" ref="ptrRef">
+//   <PullToRefreshScroll :loader="loadData" @scroll="onScroll" ref="ptrRef">
 //     ...твоя сетка/список...
 //   </PullToRefreshScroll>
 //
-//   ptrRef.value.scrollEl  ← реальный scroll-DOM-узел (если нужен для onscroll)
-const emit = defineEmits(['refresh', 'scroll'])
+//   ptrRef.value.scrollEl  ← реальный scroll-DOM-узел
+//
+// Почему loader-проп, а не @refresh-event: emit возвращает undefined и
+// не ждёт parent'а — спиннер исчезал бы мгновенно, юзер думал «не работает».
+// С функцией мы реально ждём промис и держим спиннер видимым.
+const props = defineProps({
+  loader: { type: Function, required: true },
+})
+const emit = defineEmits(['scroll'])
+
+const MIN_VISIBLE_MS = 400 // минимум показать спиннер чтобы юзер успел увидеть
 
 const scrollEl = ref(null)
 const { pullDistance, refreshing, dragging } = usePullToRefresh(scrollEl, async () => {
-  emit('refresh')
+  const startedAt = Date.now()
+  try {
+    await props.loader()
+  } catch (e) {
+    if (typeof console !== 'undefined') console.warn('ptr loader failed:', e)
+  }
+  const elapsed = Date.now() - startedAt
+  if (elapsed < MIN_VISIBLE_MS) {
+    await new Promise((r) => setTimeout(r, MIN_VISIBLE_MS - elapsed))
+  }
 })
 
-// Прокидываем DOM наружу — некоторые экраны слушают scroll для коллапса навбара.
 defineExpose({ scrollEl })
 
 let ticking = false

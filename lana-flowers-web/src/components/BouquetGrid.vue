@@ -63,7 +63,7 @@ function adapt(b) {
 </script>
 
 <template>
-  <PullToRefreshScroll ref="ptrRef" @refresh="run" @scroll="(y) => emit('scroll', y)">
+  <PullToRefreshScroll ref="ptrRef" :loader="run" @scroll="(y) => emit('scroll', y)">
     <div class="feed-inner">
       <div v-if="loading && items.length === 0" class="status">
         <span class="spinner"></span>
