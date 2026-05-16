@@ -155,24 +155,27 @@ function handleEvent(e) {
   // Все наши event'ы относятся к Сделкам — тап по тосту туда и ведёт.
   const toDeals = () => { activeTab.value = 'deals' }
 
+  // Цвет тоста (kind → background) уже несёт статус-сигнал:
+  // зелёный=success, красный=err, бордо=warn, чёрный=info. Эмодзи в тексте
+  // дублируют это семантически — убраны.
   switch (e.type) {
     case 'offer.created':
-      pushToast(`🌸 Новое предложение ${priceStr} за ${title}`, { kind: 'info', action: toDeals })
+      pushToast(`Новое предложение ${priceStr} за ${title}`, { kind: 'info', action: toDeals })
       break
     case 'offer.accepted':
-      pushToast(`✅ Принято ${priceStr} за ${title}`, { kind: 'success', ttl: 6000, action: toDeals })
+      pushToast(`Принято ${priceStr} за ${title}`, { kind: 'success', ttl: 6000, action: toDeals })
       break
     case 'offer.rejected':
-      pushToast(`❌ Отклонено: ${title}`, { kind: 'err', action: toDeals })
+      pushToast(`Отклонено: ${title}`, { kind: 'err', action: toDeals })
       break
     case 'offer.countered':
-      pushToast(`🔄 Встречное ${priceStr} за ${title}`, { kind: 'warn', action: toDeals })
+      pushToast(`Встречное ${priceStr} за ${title}`, { kind: 'warn', action: toDeals })
       break
     case 'offer.cancelled':
-      pushToast(`⚠️ Сделка отменена: ${title}`, { kind: 'warn', action: toDeals })
+      pushToast(`Сделка отменена: ${title}`, { kind: 'warn', action: toDeals })
       break
     case 'offer.expired':
-      pushToast(`Букет ${title} ушёл другому. Ваше ${priceStr} отменено`, { kind: 'err', action: toDeals })
+      pushToast(`Букет ${title} ушёл другому. Ваше предложение ${priceStr} отменено`, { kind: 'err', action: toDeals })
       break
     default:
       return // unknown event — ignore

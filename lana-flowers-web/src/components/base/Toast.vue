@@ -29,7 +29,7 @@ function onTap(t) {
           role="status"
           aria-live="polite"
         >
-          {{ t.text }}
+          <span class="msg">{{ t.text }}</span>
           <span v-if="t.action" class="chev">›</span>
         </div>
       </TransitionGroup>
@@ -80,6 +80,14 @@ function onTap(t) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+.toast .msg {
+  /* flex:1 + min-width:0 — критично: без min-width:0 flex-item не
+     уменьшается ниже intrinsic ширины текста, и длинный текст пушит
+     чевронку за край тоста. С min-width:0 текст переносится корректно. */
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .toast .chev {
   font-size: 20px;
