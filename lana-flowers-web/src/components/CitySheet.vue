@@ -10,7 +10,10 @@ defineEmits(['select', 'close'])
 </script>
 
 <template>
-  <BaseSheet :open="open" @close="$emit('close')">
+  <!-- level=2 — CitySheet может открываться поверх SellSheet (юзер тапает
+       «Город» внутри формы создания объявления). Без level CitySheet
+       сидел бы на том же z-index что и SellSheet и тонул под ним. -->
+  <BaseSheet :open="open" :level="2" @close="$emit('close')">
     <h2 class="title">Выберите город</h2>
     <ul class="list">
       <li

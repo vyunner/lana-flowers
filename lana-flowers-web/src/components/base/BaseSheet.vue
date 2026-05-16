@@ -23,6 +23,11 @@ const props = defineProps({
   // fullHeight=true → sheet занимает ~95vh, для длинных форм типа SellSheet.
   // По дефолту — auto height, контент диктует размер до max-height: 90vh.
   fullHeight: { type: Boolean, default: false },
+  // level — z-index слой. 1 = базовый sheet (overlay=30, sheet=31).
+  // 2 = sheet поверх другого sheet (CitySheet открывается из SellSheet),
+  // и т.д. без этого пропа sheet с одинаковым z-index перекрывались
+  // в порядке монтирования в DOM, что было непредсказуемо.
+  level: { type: Number, default: 1 },
 })
 const emit = defineEmits(['close'])
 
@@ -105,6 +110,7 @@ onUnmounted(() => {
     <div
       class="overlay"
       :class="{ open }"
+      :style="{ zIndex: 28 + level * 2 }"
       @click="closeOnOverlay && close()"
     ></div>
     <div
@@ -113,6 +119,7 @@ onUnmounted(() => {
       :style="{
         transform: open ? `translateY(${dragY}px)` : 'translateY(100%)',
         transition: dragging ? 'none' : 'transform .25s cubic-bezier(.2,.8,.2,1)',
+        zIndex: 29 + level * 2,
       }"
       role="dialog"
       aria-modal="true"
