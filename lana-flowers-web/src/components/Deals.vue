@@ -1,8 +1,9 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { haptic, hapticNotify } from '../telegram'
 import { getAllMyOffers, respondOffer } from '../api/offers'
 import { useApi } from '../composables/useApi'
+import { usePolling } from '../composables/usePolling'
 import { formatPrice } from '../utils/format'
 import { confirm, alert } from '../utils/dialog'
 import EmptyState from './EmptyState.vue'
@@ -10,11 +11,6 @@ import CounterPriceModal from './CounterPriceModal.vue'
 import ContactSheet from './ContactSheet.vue'
 import PullToRefreshScroll from './base/PullToRefreshScroll.vue'
 
-const props = defineProps({
-  // pendingCounterOfferId — оффер, для которого надо сразу открыть counter-модалку
-  // (приходит из startapp-параметра при тапе «Встречно» в боте).
-  pendingCounterOfferId: { type: [String, Number, null], default: null },
-})
 const emit = defineEmits(['deals-updated'])
 
 const deals = useApi(getAllMyOffers)
@@ -26,6 +22,11 @@ async function load() {
 
 onMounted(load)
 defineExpose({ refresh: load })
+
+// Тихий polling раз в 15с — самая частая зона апдейтов: контрагент
+// может ответить, принять, контрить в любую секунду. Пауза автоматически
+// когда мини-апп ушёл в фон.
+usePolling(load, 15000)
 
 // ---- Фильтр ----
 const filter = ref('active') // 'active' | 'history'
@@ -124,20 +125,6 @@ function showContact(offer) {
   contactCounterparty.value = offer.counterparty
   contactSheetOpen.value = true
 }
-
-// ---- Deep-link: автооткрытие counter-модалки по startapp ----
-watch(
-  () => [deals.data.value, props.pendingCounterOfferId],
-  ([list, targetId]) => {
-    if (!targetId || !list) return
-    const offer = list.find((o) => String(o.id) === String(targetId))
-    if (offer && offer.status === 'pending') {
-      openCounter(offer)
-      emit('deals-updated', actionableCount.value)
-    }
-  },
-  { immediate: true },
-)
 
 // ---- Хелперы статусов/ролей ----
 function statusLabel(o) {

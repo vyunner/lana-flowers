@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { haptic, tg } from '../telegram'
 import { getMyBouquets, deleteBouquet } from '../api/bouquets'
 import { useApi } from '../composables/useApi'
+import { usePolling } from '../composables/usePolling'
 import { me } from '../state/auth'
 import { formatPrice } from '../utils/format'
 import { confirm, alert } from '../utils/dialog'
@@ -34,8 +35,11 @@ async function loadAll() {
   await myBouquets.run()
 }
 onMounted(loadAll)
-
 defineExpose({ refresh: loadAll })
+
+// Polling 30с — мои объявления могут смениться статусом (sold/expired)
+// когда контрагент принял оффер. Реже чем Deals — экран менее «горячий».
+usePolling(loadAll, 30000)
 
 async function removeBouquet(b) {
   if (!(await confirm(`Снять с продажи «${b.title}»?`))) return

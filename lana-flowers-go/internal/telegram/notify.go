@@ -48,20 +48,21 @@ func NotifyNewOffer(sellerTGID string, offerID, bouquetID int64, bouquetTitle, b
 		return
 	}
 
+	// Короткий формат: «<Бук> — <BUYER ₸> (вы: <SELLER ₸>)»
+	// одной строкой. Если есть buyerName — добавляем «От: …».
+	// Раньше было 4 строки с дублями «Ваша цена / Покупатель» — мусор,
+	// продавец и так видит свою цену в карточке.
 	text := fmt.Sprintf(
-		"🌸 <b>Новое предложение</b>\n\n"+
-			"<b>%s</b>\n"+
-			"Ваша цена: <b>%s ₸</b>\n"+
-			"Покупатель: <b>%s ₸</b>",
+		"🌸 <b>%s</b> — <b>%s ₸</b> (вы: %s ₸)",
 		escapeHTML(bouquetTitle),
-		formatPrice(sellerPrice),
 		formatPrice(offerPrice),
+		formatPrice(sellerPrice),
 	)
-	if message != "" {
-		text += fmt.Sprintf("\n\n<i>«%s»</i>", escapeHTML(message))
-	}
 	if buyerName != "" {
-		text += "\n\nОт: " + escapeHTML(buyerName)
+		text += "\nОт: " + escapeHTML(buyerName)
+	}
+	if message != "" {
+		text += "\n<i>«" + escapeHTML(message) + "»</i>"
 	}
 
 	markup := &InlineKeyboardMarkup{
@@ -70,9 +71,9 @@ func NotifyNewOffer(sellerTGID string, offerID, bouquetID int64, bouquetTitle, b
 				{Text: fmt.Sprintf("✅ Принять %s ₸", formatPrice(offerPrice)), CallbackData: fmt.Sprintf("offer:%d:accept", offerID)},
 			},
 			{
-				// «Встречно» → открывает мини-апп c deeplink'ом на нужный оффер,
-				// чтобы юзер юзал красивый ползунок в app, а не ForceReply в чате.
-				{Text: "🔄 Встречно", WebApp: &WebAppInfo{URL: counterDeepLink(offerID)}},
+				// «Встречно» → бот шлёт ForceReply «Введите сумму…», юзер
+				// просто пишет число в чат. Без deep-link в app.
+				{Text: "🔄 Встречно", CallbackData: fmt.Sprintf("offer:%d:counter", offerID)},
 				{Text: "❌ Отклонить", CallbackData: fmt.Sprintf("offer:%d:reject", offerID)},
 			},
 		},
@@ -81,15 +82,6 @@ func NotifyNewOffer(sellerTGID string, offerID, bouquetID int64, bouquetTitle, b
 	if err := sendOfferNotification(chatID, bouquetPhoto, text, markup); err != nil {
 		log.Printf("notify NewOffer chat=%d: %v", chatID, err)
 	}
-}
-
-// counterDeepLink — URL мини-аппа с query-параметром, который фронт распарсит
-// и сразу откроет counter-модалку на нужном оффере. Менять URL — только синхронно
-// с фронтом (App.vue читает ?counter=...).
-const miniAppOrigin = "https://lana-flowers.vercel.app"
-
-func counterDeepLink(offerID int64) string {
-	return fmt.Sprintf("%s/?counter=%d", miniAppOrigin, offerID)
 }
 
 // sendOfferNotification — общая отправка: с фоткой через sendPhoto если URL есть,
@@ -129,16 +121,13 @@ func NotifyOfferAccepted(buyerTGID string, bouquetTitle string, finalPrice int64
 		return
 	}
 
+	// Короткий формат — детали и кнопка «Связаться» в «Сделках».
 	text := fmt.Sprintf(
-		"✅ <b>Сделка состоялась!</b>\n\n"+
-			"<b>%s</b> за <b>%s ₸</b>\n\n"+
-			"Договоритесь о доставке с продавцом",
+		"✅ Принято! <b>%s</b> за <b>%s ₸</b>. Контакты — в Сделках.",
 		escapeHTML(bouquetTitle),
 		formatPrice(finalPrice),
 	)
-	if sellerName != "" {
-		text += " " + escapeHTML(sellerName)
-	}
+	_ = sellerName // имя контрагента доступно в Сделках, в DM избыточно
 
 	if _, err := SendMessage(SendMessageReq{
 		ChatID:    chatID,
@@ -162,9 +151,7 @@ func NotifyDealCancelled(toTGID string, bouquetTitle string, finalPrice int64, i
 		who = "Продавец"
 	}
 	text := fmt.Sprintf(
-		"⚠️ <b>%s отменил сделку</b>\n\n"+
-			"<b>%s</b> за <b>%s ₸</b>\n\n"+
-			"Букет снова в продаже — если ещё актуально, можно договориться заново.",
+		"⚠️ %s отменил сделку <b>%s</b> (%s ₸). Букет снова в продаже.",
 		who, escapeHTML(bouquetTitle), formatPrice(finalPrice),
 	)
 	if _, err := SendMessage(SendMessageReq{
@@ -184,8 +171,7 @@ func NotifyOfferExpired(buyerTGID, bouquetTitle string, offerPrice int64) {
 		return
 	}
 	text := fmt.Sprintf(
-		"К сожалению, букет <b>%s</b> уже продан другому покупателю.\n\n"+
-			"Ваше предложение <b>%s ₸</b> отменено.",
+		"Букет <b>%s</b> уже продан другому. Ваше %s ₸ отменено.",
 		escapeHTML(bouquetTitle), formatPrice(offerPrice),
 	)
 	if _, err := SendMessage(SendMessageReq{
@@ -205,9 +191,9 @@ func NotifyOfferRejected(buyerTGID string, bouquetTitle string, offeredPrice int
 	}
 
 	text := fmt.Sprintf(
-		"❌ Продавец отклонил вашу цену <b>%s ₸</b>\n\nза <b>%s</b>",
-		formatPrice(offeredPrice),
+		"❌ Отклонено: <b>%s</b> — %s ₸",
 		escapeHTML(bouquetTitle),
+		formatPrice(offeredPrice),
 	)
 
 	if _, err := SendMessage(SendMessageReq{
@@ -228,20 +214,18 @@ func NotifyOfferCountered(buyerTGID string, newOfferID, bouquetID int64, bouquet
 		return
 	}
 
+	// Короткая встречка: «<Бук> — <NEW ₸> (было: <OLD ₸>)».
 	text := fmt.Sprintf(
-		"🔄 <b>Встречное предложение</b>\n\n"+
-			"<b>%s</b>\n"+
-			"Вы предлагали: %s ₸\n"+
-			"Продавец просит: <b>%s ₸</b>",
+		"🔄 <b>%s</b> — <b>%s ₸</b> (было: %s ₸)",
 		escapeHTML(bouquetTitle),
-		formatPrice(oldPrice),
 		formatPrice(newPrice),
+		formatPrice(oldPrice),
 	)
-	if message != "" {
-		text += fmt.Sprintf("\n\n<i>«%s»</i>", escapeHTML(message))
-	}
 	if sellerName != "" {
-		text += "\n\nОт: " + escapeHTML(sellerName)
+		text += "\nОт: " + escapeHTML(sellerName)
+	}
+	if message != "" {
+		text += "\n<i>«" + escapeHTML(message) + "»</i>"
 	}
 
 	markup := &InlineKeyboardMarkup{
@@ -250,7 +234,7 @@ func NotifyOfferCountered(buyerTGID string, newOfferID, bouquetID int64, bouquet
 				{Text: fmt.Sprintf("✅ Принять %s ₸", formatPrice(newPrice)), CallbackData: fmt.Sprintf("offer:%d:accept", newOfferID)},
 			},
 			{
-				{Text: "🔄 Встречно", WebApp: &WebAppInfo{URL: counterDeepLink(newOfferID)}},
+				{Text: "🔄 Встречно", CallbackData: fmt.Sprintf("offer:%d:counter", newOfferID)},
 				{Text: "❌ Отклонить", CallbackData: fmt.Sprintf("offer:%d:reject", newOfferID)},
 			},
 		},
@@ -262,11 +246,12 @@ func NotifyOfferCountered(buyerTGID string, newOfferID, bouquetID int64, bouquet
 }
 
 // AskForCounterPrice — после тапа "Встречно" просим юзера ввести сумму через ForceReply.
-// В тексте сообщения зашиваем offer_id, чтобы при ответе мы могли его восстановить.
+// В тексте сообщения зашиваем offer_id (#N), чтобы при ответе handleReply
+// его восстановил из regex'а.
 func AskForCounterPrice(chatID any, offerID int64, currentPrice int64) {
 	text := fmt.Sprintf(
-		"💬 Введите вашу <b>встречную цену</b> в тенге для оффера #%d.\nТекущая цена: %s ₸",
-		offerID, formatPrice(currentPrice),
+		"Введите вашу встречную цену в ₸ (текущая: %s ₸). #%d",
+		formatPrice(currentPrice), offerID,
 	)
 	markup := &ForceReply{
 		ForceReply: true,
@@ -276,7 +261,6 @@ func AskForCounterPrice(chatID any, offerID int64, currentPrice int64) {
 	if _, err := SendMessage(SendMessageReq{
 		ChatID:      chatID,
 		Text:        text,
-		ParseMode:   "HTML",
 		ReplyMarkup: markup,
 	}); err != nil {
 		log.Printf("ask counter: %v", err)

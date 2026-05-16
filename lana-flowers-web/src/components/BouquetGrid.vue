@@ -2,6 +2,7 @@
 import { ref, watch, onMounted, computed } from 'vue'
 import { listBouquets } from '../api/bouquets'
 import { useApi } from '../composables/useApi'
+import { usePolling } from '../composables/usePolling'
 import { me } from '../state/auth'
 import { formatPriceKzt } from '../utils/format'
 import BouquetCard from './BouquetCard.vue'
@@ -36,6 +37,11 @@ defineExpose({ refresh: reload })
 
 onMounted(reload)
 watch(() => [props.category, props.city], reload)
+
+// Polling 30с — новые объявления появляются + статусы могут протухать
+// (sold/archived). Без fading=true чтобы не моргало каждый тик —
+// прозрачно подмена данных в .grid.
+usePolling(run, 30000)
 
 const items = computed(() => data.value || [])
 

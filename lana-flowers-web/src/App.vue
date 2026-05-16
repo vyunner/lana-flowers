@@ -17,31 +17,9 @@ import BouquetDetail from './components/BouquetDetail.vue'
 import OnboardingPhone from './components/OnboardingPhone.vue'
 import OnboardingName from './components/OnboardingName.vue'
 import OnboardingAvatar from './components/OnboardingAvatar.vue'
-import { tg } from './telegram'
-
 const authReady = ref(false)
 
-// pendingCounterOfferId — если мини-апп открыт из бота кнопкой «Встречно»,
-// бот зашивает offerID в URL ?counter=N или в start_param. Передаём в Deals,
-// он откроет нужную модалку как только подгрузит список.
-const pendingCounterOfferId = ref(null)
-
-function readDeepLink() {
-  // 1) ?counter=N в URL (inline web_app кнопка из бота)
-  const urlParam = new URLSearchParams(window.location.search).get('counter')
-  if (urlParam) {
-    pendingCounterOfferId.value = urlParam
-    return
-  }
-  // 2) start_param через t.me/<bot>?startapp=counter_N (direct link)
-  const sp = tg?.initDataUnsafe?.start_param
-  if (sp && sp.startsWith('counter_')) {
-    pendingCounterOfferId.value = sp.slice('counter_'.length)
-  }
-}
-
 onMounted(async () => {
-  readDeepLink()
   try {
     const u = await getMe()
     setMe(u)
@@ -54,7 +32,7 @@ onMounted(async () => {
 
 // ---- Tabs ----
 // Если открыли через deeplink на counter — стартуем сразу на «Сделках»
-const activeTab = ref(pendingCounterOfferId.value ? 'deals' : 'catalog')
+const activeTab = ref('catalog')
 
 // Бейдж: количество офферов ждущих ответа от меня (sets by Deals on load)
 const dealsActionable = ref(0)
@@ -185,7 +163,6 @@ function selectTab(t) {
       <Deals
         v-show="activeTab === 'deals'"
         ref="dealsRef"
-        :pending-counter-offer-id="pendingCounterOfferId"
         @deals-updated="onDealsUpdated"
       />
 
