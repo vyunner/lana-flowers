@@ -214,13 +214,17 @@ func handleCallback(db *sql.DB, q *CallbackQuery) {
 
 	switch action {
 	case "accept":
-		if err := offers.AcceptOffer(db, offerID, userID); err != nil {
+		expired, err := offers.AcceptOffer(db, offerID, userID)
+		if err != nil {
 			_ = telegram.AnswerCallbackQuery(q.ID, "Ошибка: "+err.Error(), true)
 			return
 		}
 		_ = telegram.AnswerCallbackQuery(q.ID, "✅ Принято", false)
 		go telegram.NotifyOfferAccepted(ctx.BuyerID, ctx.BouquetTitle, ctx.Price,
 			ctx.SellerName)
+		for _, id := range expired {
+			go notifyExpiredFromWebhook(db, id)
+		}
 		appendStatusLine(q.Message, fmt.Sprintf("\n\n✅ <b>Принято за %d ₸</b>", ctx.Price))
 
 	case "reject":
@@ -318,6 +322,17 @@ func stripNonDigits(s string) string {
 		}
 	}
 	return sb.String()
+}
+
+// notifyExpiredFromWebhook — DM покупателю что его pending-оффер на этом букете
+// заэкспайрился (продавец принял другой оффер). Тот же смысл что
+// offers.notifyExpired, но в webhook'е нет к нему доступа (private).
+func notifyExpiredFromWebhook(db *sql.DB, offerID int64) {
+	ctx, err := offers.LoadContext(db, offerID)
+	if err != nil {
+		return
+	}
+	telegram.NotifyOfferExpired(ctx.BuyerID, ctx.BouquetTitle, ctx.Price)
 }
 
 // appendStatusLine — дорисовать строку «принято/отклонено» в сообщение продавца,

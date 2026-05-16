@@ -96,32 +96,96 @@ func GetSellerPrice(db *sql.DB, bouquetID int64) (int64, error) {
 }
 
 // AcceptOffer — продавец (sellerID) принимает оффер.
-//   Транзакция: оффер → accepted, букет → sold.
-func AcceptOffer(db *sql.DB, offerID int64, sellerID string) error {
+//
+// Транзакция:
+//   1. этот оффер → accepted
+//   2. все ОСТАЛЬНЫЕ pending-офферы на этом букете → expired
+//      (продавец не может «принять всех» — кто опоздал, тот получил отказ)
+//   3. букет → sold
+//
+// Возвращает ID'шники expired-офферов — caller разошлёт по ним notify.
+func AcceptOffer(db *sql.DB, offerID int64, sellerID string) (expired []int64, err error) {
 	ctx, err := LoadContext(db, offerID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if ctx.SellerID != sellerID {
-		return ErrNotSeller
+		return nil, ErrNotSeller
 	}
 	if ctx.Status != "pending" {
-		return ErrOfferNotPending
+		return nil, ErrOfferNotPending
 	}
 
 	tx, err := db.Begin()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer tx.Rollback()
 
 	if _, err := tx.Exec(`UPDATE offers SET status = 'accepted', responded_at = NOW() WHERE id = $1`, offerID); err != nil {
-		return err
+		return nil, err
 	}
+
+	// Гасим остальные pending'и на этом букете (от других покупателей и
+	// возможные параллельные счётчики). Собираем их id для нотификации.
+	rows, err := tx.Query(`
+		UPDATE offers SET status = 'expired', responded_at = NOW()
+		WHERE bouquet_id = $1 AND status = 'pending' AND id != $2
+		RETURNING id
+	`, ctx.BouquetID, offerID)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err == nil {
+			expired = append(expired, id)
+		}
+	}
+	rows.Close()
+
 	if _, err := tx.Exec(`UPDATE bouquets SET status = 'sold', updated_at = NOW() WHERE id = $1`, ctx.BouquetID); err != nil {
-		return err
+		return nil, err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return expired, nil
+}
+
+// CancelAcceptedOffer — «сделка не состоялась». Может вызвать любая сторона
+// (buyer или seller) на оффере в статусе accepted. Возвращает букет в активные.
+//
+// Другая сторона получает DM-уведомление об отмене (caller разошлёт через ctx).
+// Возвращает контекст оффера — нужен для уведомления.
+func CancelAcceptedOffer(db *sql.DB, offerID int64, userID string) (*OfferContext, error) {
+	ctx, err := LoadContext(db, offerID)
+	if err != nil {
+		return nil, err
+	}
+	if ctx.BuyerID != userID && ctx.SellerID != userID {
+		return nil, ErrNotSeller // переиспользуем — суть та же: «вы не сторона сделки»
+	}
+	if ctx.Status != "accepted" {
+		return nil, ErrOfferNotPending // «не в нужном статусе»
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`UPDATE offers SET status = 'cancelled', responded_at = NOW() WHERE id = $1`, offerID); err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(`UPDATE bouquets SET status = 'active', updated_at = NOW() WHERE id = $1`, ctx.BouquetID); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return ctx, nil
 }
 
 // RejectOffer — продавец отклоняет.

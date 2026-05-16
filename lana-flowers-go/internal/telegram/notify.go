@@ -149,6 +149,54 @@ func NotifyOfferAccepted(buyerTGID string, bouquetTitle string, finalPrice int64
 	}
 }
 
+// NotifyDealCancelled — одна из сторон отменила уже принятую сделку.
+// Получатель — противоположная сторона. iAmBuyer = true означает: инициатор
+// отмены был покупатель, значит DM летит ПРОДАВЦУ (получатель не он сам).
+func NotifyDealCancelled(toTGID string, bouquetTitle string, finalPrice int64, initiatedByBuyer bool) {
+	chatID, err := strconv.ParseInt(toTGID, 10, 64)
+	if err != nil {
+		return
+	}
+	who := "Покупатель"
+	if !initiatedByBuyer {
+		who = "Продавец"
+	}
+	text := fmt.Sprintf(
+		"⚠️ <b>%s отменил сделку</b>\n\n"+
+			"<b>%s</b> за <b>%s ₸</b>\n\n"+
+			"Букет снова в продаже — если ещё актуально, можно договориться заново.",
+		who, escapeHTML(bouquetTitle), formatPrice(finalPrice),
+	)
+	if _, err := SendMessage(SendMessageReq{
+		ChatID:    chatID,
+		Text:      text,
+		ParseMode: "HTML",
+	}); err != nil {
+		log.Printf("notify DealCancelled chat=%d: %v", chatID, err)
+	}
+}
+
+// NotifyOfferExpired — покупателю что его pending-оффер заэкспайрился,
+// потому что продавец принял другое предложение на тот же букет.
+func NotifyOfferExpired(buyerTGID, bouquetTitle string, offerPrice int64) {
+	chatID, err := strconv.ParseInt(buyerTGID, 10, 64)
+	if err != nil {
+		return
+	}
+	text := fmt.Sprintf(
+		"К сожалению, букет <b>%s</b> уже продан другому покупателю.\n\n"+
+			"Ваше предложение <b>%s ₸</b> отменено.",
+		escapeHTML(bouquetTitle), formatPrice(offerPrice),
+	)
+	if _, err := SendMessage(SendMessageReq{
+		ChatID:    chatID,
+		Text:      text,
+		ParseMode: "HTML",
+	}); err != nil {
+		log.Printf("notify Expired chat=%d: %v", chatID, err)
+	}
+}
+
 // NotifyOfferRejected — продавец отклонил.
 func NotifyOfferRejected(buyerTGID string, bouquetTitle string, offeredPrice int64) {
 	chatID, err := strconv.ParseInt(buyerTGID, 10, 64)

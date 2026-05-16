@@ -103,6 +103,27 @@ async function reject(offer) {
   }
 }
 
+async function cancelDeal(offer) {
+  if (busyOfferId.value) return
+  if (
+    !confirm(
+      `Отменить сделку?\n\nБукет «${offer.bouquet.title}» вернётся в продажу, ${offer.counterparty.name} получит уведомление.`,
+    )
+  ) {
+    return
+  }
+  busyOfferId.value = offer.id
+  try {
+    await respondOffer(offer.id, { action: 'cancel' })
+    hapticNotify('warning')
+    await load()
+  } catch (e) {
+    alert('Ошибка: ' + (e.message || e))
+  } finally {
+    busyOfferId.value = null
+  }
+}
+
 function showContact(offer) {
   haptic('light')
   contactCounterparty.value = offer.counterparty
@@ -133,6 +154,8 @@ function statusLabel(o) {
   if (o.status === 'accepted') return 'Принято'
   if (o.status === 'rejected') return 'Отклонено'
   if (o.status === 'countered') return 'Был встречный ответ'
+  if (o.status === 'cancelled') return 'Сделка отменена'
+  if (o.status === 'expired') return 'Букет ушёл другому'
   // pending
   return o.role === 'seller' ? 'Ждёт вашего ответа' : 'Ожидание ответа'
 }
@@ -140,6 +163,7 @@ function statusLabel(o) {
 function statusClass(o) {
   if (o.status === 'accepted') return 'ok'
   if (o.status === 'rejected') return 'err'
+  if (o.status === 'cancelled' || o.status === 'expired') return 'err'
   if (o.status === 'countered') return 'mute'
   return o.role === 'seller' ? 'warn' : 'mute'
 }
@@ -227,6 +251,14 @@ function roleLabel(o) {
             <div v-else-if="o.status === 'accepted'" class="actions">
               <button class="act primary" @click="showContact(o)">
                 Связаться с {{ o.role === 'buyer' ? 'продавцом' : 'покупателем' }}
+              </button>
+              <button
+                class="act danger ghost"
+                :disabled="busyOfferId === o.id"
+                @click="cancelDeal(o)"
+                title="Если сделка сорвалась — букет вернётся в продажу"
+              >
+                Не состоялась
               </button>
             </div>
           </div>
@@ -401,5 +433,18 @@ function roleLabel(o) {
 .act.primary:active:not(:disabled) { background: var(--accent-hover); }
 .act.danger {
   color: #d6553f;
+}
+/* Ghost = «менее заметная» — для деструктивных-но-не-страшных действий
+   типа «отменить сделку». Без фона, тонкая обводка. */
+.act.danger.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.act.danger.ghost:active:not(:disabled) {
+  background: var(--surface-2);
+  color: #d6553f;
+  border-color: #d6553f;
 }
 </style>

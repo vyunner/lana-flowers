@@ -12,12 +12,12 @@ import (
 )
 
 type respondReq struct {
-	Action  string `json:"action" binding:"required"` // accept | reject | counter
+	Action  string `json:"action" binding:"required"` // accept | reject | counter | cancel
 	Price   int64  `json:"price"`                     // обязательно для counter
 	Message string `json:"message"`
 }
 
-// Respond — продавец отвечает на оффер: принять / отклонить / встречно.
+// Respond — продавец отвечает на оффер: принять / отклонить / встречно / отменить-сделку.
 //   POST /offers/:id/respond
 func Respond(c *gin.Context, db *sql.DB) {
 	uidVal, ok := c.Get("user_id")
@@ -47,11 +47,16 @@ func Respond(c *gin.Context, db *sql.DB) {
 
 	switch req.Action {
 	case "accept":
-		if err := AcceptOffer(db, offerID, uid); err != nil {
+		expired, err := AcceptOffer(db, offerID, uid)
+		if err != nil {
 			serviceErr(c, err)
 			return
 		}
 		go telegram.NotifyOfferAccepted(ctx.BuyerID, ctx.BouquetTitle, ctx.Price, ctx.SellerName)
+		// Уведомляем тех у кого pending'и заэкспайрились (другие покупатели).
+		for _, id := range expired {
+			go notifyExpired(db, id)
+		}
 		response.OK(c, gin.H{"status": "accepted"})
 
 	case "reject":
@@ -75,9 +80,39 @@ func Respond(c *gin.Context, db *sql.DB) {
 		)
 		response.OK(c, gin.H{"status": "countered", "new_offer_id": newID})
 
+	case "cancel":
+		cancelCtx, err := CancelAcceptedOffer(db, offerID, uid)
+		if err != nil {
+			serviceErr(c, err)
+			return
+		}
+		// Уведомляем ПРОТИВОПОЛОЖНУЮ сторону. Кто инициатор — тот и не получает,
+		// чтобы не было «вы сами отменили».
+		var otherID, otherName string
+		var iAmBuyer bool
+		if uid == cancelCtx.BuyerID {
+			otherID, otherName, iAmBuyer = cancelCtx.SellerID, cancelCtx.SellerName, true
+		} else {
+			otherID, otherName, iAmBuyer = cancelCtx.BuyerID, cancelCtx.BuyerName, false
+		}
+		_ = otherName // имя пока не нужно для текста, может пригодиться позже
+		go telegram.NotifyDealCancelled(otherID, cancelCtx.BouquetTitle, cancelCtx.Price, iAmBuyer)
+		response.OK(c, gin.H{"status": "cancelled"})
+
 	default:
-		response.Err(c, http.StatusBadRequest, "BAD_ACTION", "action must be accept|reject|counter")
+		response.Err(c, http.StatusBadRequest, "BAD_ACTION", "action must be accept|reject|counter|cancel")
 	}
+}
+
+// notifyExpired — DM покупателю с заэкспайрившимся оффером после accept
+// другого оффера на том же букете. Подгружаем context отдельно: основной
+// AcceptOffer возвращает только id-шники.
+func notifyExpired(db *sql.DB, offerID int64) {
+	ctx, err := LoadContext(db, offerID)
+	if err != nil {
+		return
+	}
+	telegram.NotifyOfferExpired(ctx.BuyerID, ctx.BouquetTitle, ctx.Price)
 }
 
 func serviceErr(c *gin.Context, err error) {
