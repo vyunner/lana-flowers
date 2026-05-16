@@ -32,10 +32,19 @@ onMounted(async () => {
   } finally {
     authReady.value = true
   }
+
+  // Deeplink из Telegram-DM: WebApp inline-кнопки в боте открывают мини-апп
+  // c URL'ом вида https://.../?screen=deals|profile|catalog. Если screen
+  // валидный — стартуем сразу на нужном табе.
+  try {
+    const screen = new URLSearchParams(window.location.search).get('screen')
+    if (screen === 'deals' || screen === 'profile' || screen === 'catalog') {
+      activeTab.value = screen
+    }
+  } catch {}
 })
 
 // ---- Tabs ----
-// Если открыли через deeplink на counter — стартуем сразу на «Сделках»
 const activeTab = ref('catalog')
 
 // Бейдж: количество офферов ждущих ответа от меня (sets by Deals on load)

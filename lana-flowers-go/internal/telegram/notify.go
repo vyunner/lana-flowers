@@ -3,6 +3,7 @@ package telegram
 import (
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -31,54 +32,18 @@ func formatPrice(n int64) string {
 	return sb.String()
 }
 
-// NotifyNewOffer — новый оффер от покупателя продавцу.
-//
-// callback_data формат: "offer:<id>:accept" / ":reject" / ":counter"
-//
-// Внимание: @username / t.me-ссылки на юзеров НЕ показываем. Это приватные
-// данные, продавцу хватает имени. Если нужен контакт — он зашит в Telegram-ID
-// и в БД-телефоне, но в текст ботом не льём.
-//
-// bouquetPhoto — URL первой картинки. Если пустой, шлём просто текст;
-// иначе картинка с caption (так выглядит как нормальная карточка маркетплейса).
-func NotifyNewOffer(sellerTGID string, offerID, bouquetID int64, bouquetTitle, bouquetPhoto string, sellerPrice, offerPrice int64, buyerName string) {
-	defer trackEnd(trackStart())
-	chatID, err := strconv.ParseInt(sellerTGID, 10, 64)
-	if err != nil {
-		log.Printf("notify: bad sellerTGID %q: %v", sellerTGID, err)
-		return
+// miniAppButton — кнопка-deeplink в мини-апп на конкретный экран.
+// screen: "catalog" | "deals" | "profile" — должен совпадать с парсером
+// ?screen=... в App.vue. WebApp inline-кнопки работают только в DM с ботом
+// (а нотификации именно туда и шлются), что нам подходит.
+func miniAppButton(text, screen string) InlineKeyboardButton {
+	base := os.Getenv("WEBAPP_URL")
+	if base == "" {
+		base = "https://lana-flowers.vercel.app"
 	}
-
-	// Короткий формат: «<Бук> — <BUYER ₸> (вы: <SELLER ₸>)»
-	// одной строкой. Если есть buyerName — добавляем «От: …».
-	// Раньше было 4 строки с дублями «Ваша цена / Покупатель» — мусор,
-	// продавец и так видит свою цену в карточке.
-	text := fmt.Sprintf(
-		"🌸 <b>%s</b> — <b>%s ₸</b> (вы: %s ₸)",
-		escapeHTML(bouquetTitle),
-		formatPrice(offerPrice),
-		formatPrice(sellerPrice),
-	)
-	if buyerName != "" {
-		text += "\nОт: " + escapeHTML(buyerName)
-	}
-
-	markup := &InlineKeyboardMarkup{
-		InlineKeyboard: [][]InlineKeyboardButton{
-			{
-				{Text: fmt.Sprintf("✅ Принять %s ₸", formatPrice(offerPrice)), CallbackData: fmt.Sprintf("offer:%d:accept", offerID)},
-			},
-			{
-				// «Встречно» → бот шлёт ForceReply «Введите сумму…», юзер
-				// просто пишет число в чат. Без deep-link в app.
-				{Text: "🔄 Встречно", CallbackData: fmt.Sprintf("offer:%d:counter", offerID)},
-				{Text: "❌ Отклонить", CallbackData: fmt.Sprintf("offer:%d:reject", offerID)},
-			},
-		},
-	}
-
-	if err := sendOfferNotification(chatID, bouquetPhoto, text, markup); err != nil {
-		log.Printf("notify NewOffer chat=%d: %v", chatID, err)
+	return InlineKeyboardButton{
+		Text:   text,
+		WebApp: &WebAppInfo{URL: base + "/?screen=" + screen},
 	}
 }
 
@@ -109,127 +74,82 @@ func sendOfferNotification(chatID int64, photoURL, text string, markup *InlineKe
 	return err
 }
 
-// NotifyOfferAccepted — продавец принял оффер.
+// sendCard — общая отправка карточки с CTA (без фото). Все «итог-действия»
+// (accepted/rejected/expired/cancelled/withdrawn) шлются этой функцией:
+// единый ParseMode/HTML, единая обработка ошибки, единый лог.
+func sendCard(chatID int64, text string, markup *InlineKeyboardMarkup, tag string) {
+	if _, err := SendMessage(SendMessageReq{
+		ChatID:      chatID,
+		Text:        text,
+		ParseMode:   "HTML",
+		ReplyMarkup: markup,
+	}); err != nil {
+		log.Printf("notify %s chat=%d: %v", tag, chatID, err)
+	}
+}
+
+// ---- Структура карточки ----
 //
-// Контакт продавца НЕ шлём в текст (ни @username, ни t.me-ссылку).
-// Координация по доставке — внутри приложения (раздел «Сообщения»).
-func NotifyOfferAccepted(buyerTGID string, bouquetTitle string, finalPrice int64, sellerName string) {
-	defer trackEnd(trackStart())
-	chatID, err := strconv.ParseInt(buyerTGID, 10, 64)
-	if err != nil {
-		return
-	}
+// Все нотификации следуют единому многострочному шаблону:
+//
+//   <emoji> <Заголовок-действие>
+//
+//   <b>Название букета</b>
+//   <b>NNN ₸</b> [контекст в обычном тексте]
+//
+//   [От: Имя]
+//
+//   [Подпись/инструкция/что делать дальше]
+//
+//   [Кнопки CTA — deeplink в мини-апп или callback для торга]
+//
+// Эмодзи в заголовке — статусный, один. Декоративных эмодзи в карточках нет
+// (брендовая Uber-стайл минималистичность; глаз цепляется за статус, а не
+// за лепестки).
 
-	// Короткий формат — детали и кнопка «Связаться» в «Сделках».
-	text := fmt.Sprintf(
-		"✅ Принято! <b>%s</b> за <b>%s ₸</b>. Контакты — в Сделках.",
-		escapeHTML(bouquetTitle),
-		formatPrice(finalPrice),
-	)
-	_ = sellerName // имя контрагента доступно в Сделках, в DM избыточно
-
-	if _, err := SendMessage(SendMessageReq{
-		ChatID:    chatID,
-		Text:      text,
-		ParseMode: "HTML",
-	}); err != nil {
-		log.Printf("notify Accepted chat=%d: %v", chatID, err)
-	}
-}
-
-// NotifyDealCancelled — одна из сторон отменила уже принятую сделку.
-// Получатель — противоположная сторона. iAmBuyer = true означает: инициатор
-// отмены был покупатель, значит DM летит ПРОДАВЦУ (получатель не он сам).
-func NotifyDealCancelled(toTGID string, bouquetTitle string, finalPrice int64, initiatedByBuyer bool) {
-	defer trackEnd(trackStart())
-	chatID, err := strconv.ParseInt(toTGID, 10, 64)
-	if err != nil {
-		return
-	}
-	who := "Покупатель"
-	if !initiatedByBuyer {
-		who = "Продавец"
-	}
-	text := fmt.Sprintf(
-		"⚠️ %s отменил сделку <b>%s</b> (%s ₸). Букет снова в продаже.",
-		who, escapeHTML(bouquetTitle), formatPrice(finalPrice),
-	)
-	if _, err := SendMessage(SendMessageReq{
-		ChatID:    chatID,
-		Text:      text,
-		ParseMode: "HTML",
-	}); err != nil {
-		log.Printf("notify DealCancelled chat=%d: %v", chatID, err)
-	}
-}
-
-// NotifyOfferWithdrawn — продавцу, что покупатель отозвал своё pending-предложение
-// до того, как продавец на него ответил. Сделки не было, букет с продажи не уходил —
-// поэтому формулировка отличается от NotifyDealCancelled («снова в продаже» врало бы).
-func NotifyOfferWithdrawn(sellerTGID string, bouquetTitle string, offeredPrice int64) {
+// NotifyNewOffer — новый оффер от покупателя продавцу. Card + photo + callback-кнопки.
+//
+// callback_data формат: "offer:<id>:accept" / ":reject" / ":counter"
+//
+// @username покупателя не показываем — приватные данные.
+func NotifyNewOffer(sellerTGID string, offerID, bouquetID int64, bouquetTitle, bouquetPhoto string, sellerPrice, offerPrice int64, buyerName string) {
 	defer trackEnd(trackStart())
 	chatID, err := strconv.ParseInt(sellerTGID, 10, 64)
 	if err != nil {
-		return
-	}
-	text := fmt.Sprintf(
-		"↩️ Покупатель отозвал предложение <b>%s</b> (%s ₸).",
-		escapeHTML(bouquetTitle), formatPrice(offeredPrice),
-	)
-	if _, err := SendMessage(SendMessageReq{
-		ChatID:    chatID,
-		Text:      text,
-		ParseMode: "HTML",
-	}); err != nil {
-		log.Printf("notify OfferWithdrawn chat=%d: %v", chatID, err)
-	}
-}
-
-// NotifyOfferExpired — покупателю что его pending-оффер заэкспайрился,
-// потому что продавец принял другое предложение на тот же букет.
-func NotifyOfferExpired(buyerTGID, bouquetTitle string, offerPrice int64) {
-	defer trackEnd(trackStart())
-	chatID, err := strconv.ParseInt(buyerTGID, 10, 64)
-	if err != nil {
-		return
-	}
-	text := fmt.Sprintf(
-		"Букет <b>%s</b> уже продан другому. Ваше %s ₸ отменено.",
-		escapeHTML(bouquetTitle), formatPrice(offerPrice),
-	)
-	if _, err := SendMessage(SendMessageReq{
-		ChatID:    chatID,
-		Text:      text,
-		ParseMode: "HTML",
-	}); err != nil {
-		log.Printf("notify Expired chat=%d: %v", chatID, err)
-	}
-}
-
-// NotifyOfferRejected — продавец отклонил.
-func NotifyOfferRejected(buyerTGID string, bouquetTitle string, offeredPrice int64) {
-	defer trackEnd(trackStart())
-	chatID, err := strconv.ParseInt(buyerTGID, 10, 64)
-	if err != nil {
+		log.Printf("notify: bad sellerTGID %q: %v", sellerTGID, err)
 		return
 	}
 
 	text := fmt.Sprintf(
-		"❌ Отклонено: <b>%s</b> — %s ₸",
+		"💌 Новое предложение\n\n<b>%s</b>\n<b>%s ₸</b> — ваша цена %s ₸",
 		escapeHTML(bouquetTitle),
-		formatPrice(offeredPrice),
+		formatPrice(offerPrice),
+		formatPrice(sellerPrice),
 	)
+	if buyerName != "" {
+		text += "\n\nОт: " + escapeHTML(buyerName)
+	}
 
-	if _, err := SendMessage(SendMessageReq{
-		ChatID:    chatID,
-		Text:      text,
-		ParseMode: "HTML",
-	}); err != nil {
-		log.Printf("notify Rejected chat=%d: %v", chatID, err)
+	markup := &InlineKeyboardMarkup{
+		InlineKeyboard: [][]InlineKeyboardButton{
+			{
+				{Text: fmt.Sprintf("✅ Принять %s ₸", formatPrice(offerPrice)), CallbackData: fmt.Sprintf("offer:%d:accept", offerID)},
+			},
+			{
+				// «Встречно» → бот шлёт ForceReply «Введите сумму…», юзер
+				// просто пишет число в чат. Без deep-link в app.
+				{Text: "🔄 Встречно", CallbackData: fmt.Sprintf("offer:%d:counter", offerID)},
+				{Text: "❌ Отклонить", CallbackData: fmt.Sprintf("offer:%d:reject", offerID)},
+			},
+		},
+	}
+
+	if err := sendOfferNotification(chatID, bouquetPhoto, text, markup); err != nil {
+		log.Printf("notify NewOffer chat=%d: %v", chatID, err)
 	}
 }
 
-// NotifyOfferCountered — продавец дал встречную цену. Покупатель решает: принять / отклонить / встречно.
+// NotifyOfferCountered — встречная цена контрагенту. Card + photo + callback-кнопки.
 //
 // @username продавца не показываем — приватные данные.
 func NotifyOfferCountered(buyerTGID string, newOfferID, bouquetID int64, bouquetTitle, bouquetPhoto string, oldPrice, newPrice int64, sellerName string) {
@@ -239,15 +159,14 @@ func NotifyOfferCountered(buyerTGID string, newOfferID, bouquetID int64, bouquet
 		return
 	}
 
-	// Короткая встречка: «<Бук> — <NEW ₸> (было: <OLD ₸>)».
 	text := fmt.Sprintf(
-		"🔄 <b>%s</b> — <b>%s ₸</b> (было: %s ₸)",
+		"🔄 Встречная цена\n\n<b>%s</b>\n<b>%s ₸</b> — вы предлагали %s ₸",
 		escapeHTML(bouquetTitle),
 		formatPrice(newPrice),
 		formatPrice(oldPrice),
 	)
 	if sellerName != "" {
-		text += "\nОт: " + escapeHTML(sellerName)
+		text += "\n\nОт: " + escapeHTML(sellerName)
 	}
 
 	markup := &InlineKeyboardMarkup{
@@ -265,6 +184,126 @@ func NotifyOfferCountered(buyerTGID string, newOfferID, bouquetID int64, bouquet
 	if err := sendOfferNotification(chatID, bouquetPhoto, text, markup); err != nil {
 		log.Printf("notify Countered chat=%d: %v", chatID, err)
 	}
+}
+
+// NotifyOfferAccepted — покупателю что его оффер принят. Card + CTA в Сделки.
+//
+// Контакт продавца в текст НЕ кладём — он раскрывается только в Сделках
+// (там же, где договариваются о встрече).
+func NotifyOfferAccepted(buyerTGID string, bouquetTitle string, finalPrice int64, sellerName string) {
+	defer trackEnd(trackStart())
+	chatID, err := strconv.ParseInt(buyerTGID, 10, 64)
+	if err != nil {
+		return
+	}
+	_ = sellerName // имя контрагента уже доступно в Сделках, в DM избыточно
+
+	text := fmt.Sprintf(
+		"✅ Предложение принято\n\n<b>%s</b>\n<b>%s ₸</b>\n\nДоговоритесь о деталях с продавцом в Сделках.",
+		escapeHTML(bouquetTitle),
+		formatPrice(finalPrice),
+	)
+	markup := &InlineKeyboardMarkup{
+		InlineKeyboard: [][]InlineKeyboardButton{
+			{miniAppButton("💬 Открыть Сделки", "deals")},
+		},
+	}
+	sendCard(chatID, text, markup, "Accepted")
+}
+
+// NotifyOfferRejected — покупателю что его оффер отклонён. Card + CTA в каталог.
+func NotifyOfferRejected(buyerTGID string, bouquetTitle string, offeredPrice int64) {
+	defer trackEnd(trackStart())
+	chatID, err := strconv.ParseInt(buyerTGID, 10, 64)
+	if err != nil {
+		return
+	}
+	text := fmt.Sprintf(
+		"❌ Предложение отклонено\n\n<b>%s</b>\n<b>%s ₸</b>\n\nПопробуйте другую цену или посмотрите похожие букеты.",
+		escapeHTML(bouquetTitle),
+		formatPrice(offeredPrice),
+	)
+	markup := &InlineKeyboardMarkup{
+		InlineKeyboard: [][]InlineKeyboardButton{
+			{miniAppButton("🔍 Похожие букеты", "catalog")},
+		},
+	}
+	sendCard(chatID, text, markup, "Rejected")
+}
+
+// NotifyOfferWithdrawn — продавцу: покупатель отозвал свой pending до того, как
+// продавец на него ответил. Сделки не было, букет с продажи не уходил — поэтому
+// формулировка отличается от NotifyDealCancelled («снова в продаже» врало бы).
+// CTA не вешаем: букет остался активным в каталоге, продавец и так в курсе.
+func NotifyOfferWithdrawn(sellerTGID string, bouquetTitle string, offeredPrice int64) {
+	defer trackEnd(trackStart())
+	chatID, err := strconv.ParseInt(sellerTGID, 10, 64)
+	if err != nil {
+		return
+	}
+	text := fmt.Sprintf(
+		"↩️ Покупатель забрал предложение\n\n<b>%s</b>\n<b>%s ₸</b>\n\nБукет остаётся в продаже.",
+		escapeHTML(bouquetTitle),
+		formatPrice(offeredPrice),
+	)
+	sendCard(chatID, text, nil, "OfferWithdrawn")
+}
+
+// NotifyDealCancelled — одна из сторон отменила уже принятую сделку.
+// Получатель — противоположная сторона. recipientIsBuyer = получатель этого
+// DM сейчас в роли покупателя; от этого зависит и текст, и CTA:
+//   - получатель=продавец (отменил buyer): «Покупатель передумал…» + «Мои букеты»
+//   - получатель=покупатель (отменил seller): «Продавец отменил…» + «Похожие букеты»
+func NotifyDealCancelled(toTGID string, bouquetTitle string, finalPrice int64, recipientIsBuyer bool) {
+	defer trackEnd(trackStart())
+	chatID, err := strconv.ParseInt(toTGID, 10, 64)
+	if err != nil {
+		return
+	}
+
+	var body string
+	var btn InlineKeyboardButton
+	if recipientIsBuyer {
+		// Покупателю: его сделка лопнула со стороны продавца.
+		body = "Продавец отменил сделку. Посмотрите похожие букеты."
+		btn = miniAppButton("🔍 Похожие букеты", "catalog")
+	} else {
+		// Продавцу: покупатель передумал, букет возвращён в каталог.
+		body = "Покупатель передумал. Букет снова в каталоге."
+		btn = miniAppButton("🛒 Мои букеты", "profile")
+	}
+
+	text := fmt.Sprintf(
+		"⚠️ Сделка отменена\n\n<b>%s</b>\n<b>%s ₸</b>\n\n%s",
+		escapeHTML(bouquetTitle),
+		formatPrice(finalPrice),
+		body,
+	)
+	markup := &InlineKeyboardMarkup{
+		InlineKeyboard: [][]InlineKeyboardButton{{btn}},
+	}
+	sendCard(chatID, text, markup, "DealCancelled")
+}
+
+// NotifyOfferExpired — покупателю что его pending-оффер заэкспайрился: продавец
+// принял другое предложение на тот же букет. Card + CTA в каталог.
+func NotifyOfferExpired(buyerTGID, bouquetTitle string, offerPrice int64) {
+	defer trackEnd(trackStart())
+	chatID, err := strconv.ParseInt(buyerTGID, 10, 64)
+	if err != nil {
+		return
+	}
+	text := fmt.Sprintf(
+		"⏱ Букет ушёл другому покупателю\n\n<b>%s</b>\n\nВаше предложение <b>%s ₸</b> отменено.",
+		escapeHTML(bouquetTitle),
+		formatPrice(offerPrice),
+	)
+	markup := &InlineKeyboardMarkup{
+		InlineKeyboard: [][]InlineKeyboardButton{
+			{miniAppButton("🔍 Похожие букеты", "catalog")},
+		},
+	}
+	sendCard(chatID, text, markup, "Expired")
 }
 
 // AskForCounterPrice — после тапа "Встречно" просим юзера ввести сумму через ForceReply.

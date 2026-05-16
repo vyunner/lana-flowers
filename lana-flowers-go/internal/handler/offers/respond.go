@@ -100,15 +100,18 @@ func Respond(c *gin.Context, db *sql.DB) {
 			return
 		}
 		// Уведомляем ПРОТИВОПОЛОЖНУЮ сторону. Кто инициатор — тот и не получает,
-		// чтобы не было «вы сами отменили».
+		// чтобы не было «вы сами отменили». recipientIsBuyer определяет тон и
+		// CTA в нотификации (см. NotifyDealCancelled).
 		var otherID string
-		var iAmBuyer bool
+		var recipientIsBuyer bool
 		if uid == cancelCtx.BuyerID {
-			otherID, iAmBuyer = cancelCtx.SellerID, true
+			// Инициатор — покупатель → получатель = продавец.
+			otherID, recipientIsBuyer = cancelCtx.SellerID, false
 		} else {
-			otherID, iAmBuyer = cancelCtx.BuyerID, false
+			// Инициатор — продавец → получатель = покупатель.
+			otherID, recipientIsBuyer = cancelCtx.BuyerID, true
 		}
-		go telegram.NotifyDealCancelled(otherID, cancelCtx.BouquetTitle, cancelCtx.Price, iAmBuyer)
+		go telegram.NotifyDealCancelled(otherID, cancelCtx.BouquetTitle, cancelCtx.Price, recipientIsBuyer)
 		events.Default().Publish(otherID, events.Event{
 			Type: events.TypeOfferCancelled, OfferID: offerID,
 			BouquetTitle: cancelCtx.BouquetTitle, Price: cancelCtx.Price,
