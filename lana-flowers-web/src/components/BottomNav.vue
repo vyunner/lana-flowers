@@ -41,7 +41,7 @@ const activeIndex = () => tabs.findIndex((t) => t.key === props.active)
         </g>
         <circle cx="14" cy="14" r="2.4" :fill="active === 'catalog' ? 'var(--nav-active-bg)' : 'var(--nav-bg)'" />
       </svg>
-      <!-- deals — рукопожатие (упрощённое: две скруглённые скобки/палочки) -->
+      <!-- deals — чат/сообщения (пузырь) -->
       <svg v-else-if="tab.key === 'deals'" viewBox="0 0 28 28" fill="none">
         <path
           d="M5 9.5a3.5 3.5 0 013.5-3.5h11A3.5 3.5 0 0123 9.5v7a3.5 3.5 0 01-3.5 3.5H12l-4.5 3.5V20H8.5A3.5 3.5 0 015 16.5v-7z"
@@ -50,10 +50,9 @@ const activeIndex = () => tabs.findIndex((t) => t.key === props.active)
           stroke-linejoin="round"
         />
       </svg>
-      <span v-if="tab.key === 'deals' && dealsBadge > 0" class="badge">
-        {{ dealsBadge > 9 ? '9+' : dealsBadge }}
-      </span>
-      <!-- profile -->
+      <!-- profile — ВАЖНО: должен быть НЕПОСРЕДСТВЕННО после v-else-if='deals',
+           иначе Vue ломает цепочку v-if/v-else-if/v-else и иконка профиля
+           рендерится во всех табах одновременно (был баг, ловили вживую). -->
       <svg v-else viewBox="0 0 28 28" fill="none">
         <circle cx="14" cy="10.5" r="4.2" stroke="currentColor" stroke-width="1.7" />
         <path
@@ -64,6 +63,9 @@ const activeIndex = () => tabs.findIndex((t) => t.key === props.active)
         />
       </svg>
       <span>{{ tab.label }}</span>
+      <span v-if="tab.key === 'deals' && dealsBadge > 0" class="badge">
+        {{ dealsBadge > 9 ? '9+' : dealsBadge }}
+      </span>
     </button>
   </nav>
 </template>
