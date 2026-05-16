@@ -22,6 +22,7 @@ const submitting = ref(false)
 const errorText = ref('')
 const selfError = ref(false)
 const duplicateError = ref(false)
+const unavailableError = ref(false) // букет уже снят / продан / удалён
 const sentState = ref(false) // success-экран после отправки
 const sentPrice = ref(0)
 
@@ -33,6 +34,7 @@ watch(
       errorText.value = ''
       selfError.value = false
       duplicateError.value = false
+      unavailableError.value = false
       sentState.value = false
       sentPrice.value = 0
     }
@@ -65,6 +67,11 @@ async function submit() {
       selfError.value = true
     } else if (e.code === 'DUPLICATE_OFFER') {
       duplicateError.value = true
+    } else if (e.code === 'BOUQUET_UNAVAILABLE') {
+      unavailableError.value = true
+      // Сигнал родителю что список протух — пусть рефрешит каталог.
+      // closeOnly=true → не считать это успешным оффером, бейдж не нужен.
+      emit('submitted', { bouquet: props.bouquet, unavailable: true })
     } else {
       errorText.value = e.message || 'Ошибка при отправке'
     }
@@ -108,6 +115,17 @@ const diff = computed(() => value.value - sellerPrice.value)
         <h3 class="self-title">Это ваше объявление</h3>
         <p class="self-text">
           Нельзя сделать предложение на свой собственный букет.
+        </p>
+        <button class="submit-btn" type="button" @click="$emit('close')">
+          Понятно
+        </button>
+      </div>
+
+      <!-- Букет уже снят / продан / удалён, у юзера протухшая карточка -->
+      <div v-else-if="unavailableError" class="self-state">
+        <h3 class="self-title">Объявление больше не активно</h3>
+        <p class="self-text">
+          Продавец снял букет с продажи или он уже продан. Каталог обновится.
         </p>
         <button class="submit-btn" type="button" @click="$emit('close')">
           Понятно

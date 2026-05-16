@@ -40,8 +40,10 @@ func Create(c *gin.Context, db *sql.DB) {
 			response.Err(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 		case errors.Is(err, ErrSelfOffer):
 			response.Err(c, http.StatusBadRequest, "SELF_OFFER", err.Error())
-		case errors.Is(err, ErrBouquetInactive):
-			response.Err(c, http.StatusBadRequest, "BOUQUET_NOT_ACTIVE", err.Error())
+		case errors.Is(err, ErrBouquetInactive), errors.Is(err, ErrBouquetNotFound):
+			// Оба случая объединяем в один клиентский код — UX одинаков:
+			// объявление больше нельзя купить (снято / продано / удалено).
+			response.Err(c, http.StatusGone, "BOUQUET_UNAVAILABLE", err.Error())
 		case errors.Is(err, ErrPendingExists):
 			response.Err(c, http.StatusConflict, "DUPLICATE_OFFER", err.Error())
 		default:

@@ -3,7 +3,6 @@ package offers
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 )
 
 // Сервисный слой: бизнес-логика принять/отклонить/встречно.
@@ -11,13 +10,14 @@ import (
 // логика одна и та же, разные UI-обёртки.
 
 var (
-	ErrOfferNotFound   = errors.New("offer not found")
-	ErrNotSeller       = errors.New("not your offer (you are not the seller)")
-	ErrOfferNotPending = errors.New("offer is not pending")
-	ErrInvalidPrice    = errors.New("price must be > 0")
-	ErrSelfOffer       = errors.New("cannot offer on your own bouquet")
-	ErrBouquetInactive = errors.New("bouquet is not active")
-	ErrPendingExists   = errors.New("у вас уже есть активное предложение на этот букет")
+	ErrOfferNotFound    = errors.New("offer not found")
+	ErrNotSeller        = errors.New("not your offer (you are not the seller)")
+	ErrOfferNotPending  = errors.New("offer is not pending")
+	ErrInvalidPrice     = errors.New("price must be > 0")
+	ErrSelfOffer        = errors.New("cannot offer on your own bouquet")
+	ErrBouquetInactive  = errors.New("bouquet is not active")
+	ErrBouquetNotFound  = errors.New("bouquet not found")
+	ErrPendingExists    = errors.New("у вас уже есть активное предложение на этот букет")
 )
 
 // OfferContext — данные оффера, которые нужны и handler'у, и notify-функциям.
@@ -264,7 +264,7 @@ func CreateOffer(db *sql.DB, bouquetID int64, buyerID string, price int64, messa
 	err := db.QueryRow(`SELECT seller_id, status FROM bouquets WHERE id = $1`, bouquetID).
 		Scan(&sellerID, &status)
 	if err == sql.ErrNoRows {
-		return 0, nil, fmt.Errorf("bouquet not found")
+		return 0, nil, ErrBouquetNotFound
 	}
 	if err != nil {
 		return 0, nil, err
