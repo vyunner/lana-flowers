@@ -13,6 +13,7 @@ import Profile from './components/Profile.vue'
 import CitySheet from './components/CitySheet.vue'
 import SellSheet from './components/SellSheet.vue'
 import OfferSheet from './components/OfferSheet.vue'
+import BouquetDetail from './components/BouquetDetail.vue'
 import OnboardingPhone from './components/OnboardingPhone.vue'
 import OnboardingName from './components/OnboardingName.vue'
 import OnboardingAvatar from './components/OnboardingAvatar.vue'
@@ -90,12 +91,35 @@ function onPublished() {
   profileRef.value?.refresh?.()
 }
 
+// ---- Bouquet detail ----
+const detailBouquet = ref(null)
+function openDetail(b) {
+  haptic('light')
+  detailBouquet.value = b
+}
+function closeDetail() {
+  detailBouquet.value = null
+}
+
 // ---- Offer sheet ----
 const offerOpen = ref(false)
 const offerBouquet = ref(null)
 function openOffer(bouquet) {
   haptic('light')
   offerBouquet.value = bouquet
+  offerOpen.value = true
+}
+// Из деталь-экрана прилетает СЫРОЙ bouquet (не adapted), OfferSheet ждёт
+// объект с .price (строкой типа "10 000 ₸") и .raw — собираем на лету.
+function openOfferFromDetail(rawBouquet) {
+  haptic('light')
+  const ruFmt = new Intl.NumberFormat('ru-RU')
+  offerBouquet.value = {
+    id: rawBouquet.id,
+    price: ruFmt.format(rawBouquet.price) + ' ₸',
+    name: rawBouquet.title,
+    raw: rawBouquet,
+  }
   offerOpen.value = true
 }
 function onOfferSubmitted() {
@@ -154,6 +178,7 @@ function selectTab(t) {
           :city="selectedCity"
           @scroll="onFeedScroll"
           @offer="openOffer"
+          @open="openDetail"
         />
       </div>
 
@@ -194,6 +219,13 @@ function selectTab(t) {
       :bouquet="offerBouquet"
       @close="offerOpen = false"
       @submitted="onOfferSubmitted"
+    />
+
+    <BouquetDetail
+      :open="!!detailBouquet"
+      :bouquet="detailBouquet"
+      @close="closeDetail"
+      @offer="openOfferFromDetail"
     />
   </div>
 </template>

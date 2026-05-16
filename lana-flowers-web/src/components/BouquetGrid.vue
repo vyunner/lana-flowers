@@ -11,7 +11,7 @@ const props = defineProps({
   category: { type: String, required: true },
   city: { type: String, required: true },
 })
-const emit = defineEmits(['scroll', 'offer'])
+const emit = defineEmits(['scroll', 'offer', 'open'])
 
 const fading = ref(false)
 
@@ -98,6 +98,7 @@ function onScroll(e) {
           :key="b.id"
           :bouquet="adapt(b)"
           @offer="emit('offer', adapt(b))"
+          @open="emit('open', b)"
         />
         <EmptyState v-if="items.length === 0" text="В этом городе пока нет букетов" />
       </div>

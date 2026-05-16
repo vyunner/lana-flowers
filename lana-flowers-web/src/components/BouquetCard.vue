@@ -2,11 +2,14 @@
 defineProps({
   bouquet: { type: Object, required: true },
 })
-defineEmits(['offer'])
+defineEmits(['offer', 'open'])
 </script>
 
 <template>
-  <article class="card">
+  <!-- Вся карточка кликабельная → открывает деталь. Кнопка offer ниже
+       тоже принимает тапы, но через @click.stop — иначе оба хендлера
+       сработают и юзер уйдёт в деталь вместо отправки оффера. -->
+  <article class="card" @click="$emit('open', bouquet)">
     <div class="photo" :style="{ backgroundImage: `url('${bouquet.photo}')` }"></div>
     <div class="body">
       <div class="price">{{ bouquet.price }}</div>
