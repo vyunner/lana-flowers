@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"lana-flowers-go/internal/auth"
@@ -31,6 +35,11 @@ func getenv(key, def string) string {
 	return v
 }
 
+// initDataMaxAge — окно anti-replay для Telegram initData. Telegram-доки рекомендуют
+// порядок часа; 3ч — компромисс между UX (юзер открыл мини-апп, отвлёкся, вернулся)
+// и безопасностью (украденный initData нельзя реплеить сутками).
+const initDataMaxAge = 3 * time.Hour
+
 func main() {
 	_ = godotenv.Load()
 
@@ -46,6 +55,13 @@ func main() {
 		log.Fatal("DATABASE_URL is required in .env")
 	}
 
+	// Production-режим — без debug-логов от Gin и без warning'ов в journal.
+	// Локально: оставьте APP_ENV пустым / development.
+	appEnv := getenv("APP_ENV", "development")
+	if appEnv == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	conn, err := dbpkg.ConnectDB(dsn)
 	if err != nil {
 		log.Fatalf("db connect: %v", err)
@@ -56,12 +72,19 @@ func main() {
 	r.Use(gin.Logger(), gin.Recovery())
 	_ = r.SetTrustedProxies(nil)
 
+	// CORS-whitelist: список через запятую в CORS_ORIGINS. Дефолт — продовый
+	// vercel-домен. AllowAllOrigins:true опасно даже для mini-app: любой сайт
+	// может слать запросы от лица юзера если получит initData.
+	allowedOrigins := strings.Split(getenv("CORS_ORIGINS", "https://lana-flowers.vercel.app"), ",")
+	for i, o := range allowedOrigins {
+		allowedOrigins[i] = strings.TrimSpace(o)
+	}
 	r.Use(cors.New(cors.Config{
-		AllowAllOrigins: true,
-		AllowMethods:    []string{"*"},
-		AllowHeaders:    []string{"*"},
-		ExposeHeaders:   []string{"*"},
-		MaxAge:          12 * time.Hour,
+		AllowOrigins:  allowedOrigins,
+		AllowMethods:  []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:  []string{"Origin", "Content-Type", "Authorization", "X-Telegram-Init-Data", "X-Secret"},
+		ExposeHeaders: []string{"Content-Length"},
+		MaxAge:        12 * time.Hour,
 	}))
 
 	r.GET("/health", func(c *gin.Context) {
@@ -78,20 +101,47 @@ func main() {
 	offers.RegisterRoutes(r, conn)
 	upload.RegisterRoutes(r, conn)
 
-	log.Printf("listening on :%s", port)
-	if err := r.Run(":" + port); err != nil {
-		log.Fatal(err)
+	// Graceful shutdown: ловим SIGTERM/SIGINT, даём 10s in-flight запросам
+	// нормально закончиться вместо kill -9. Без этого деплой обрывает
+	// горутины nofity'ев и in-flight POST'ы.
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: r,
 	}
+
+	go func() {
+		log.Printf("listening on :%s", port)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("listen: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Print("shutdown signal received")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("graceful shutdown failed: %v", err)
+	}
+	log.Print("server stopped")
 }
 
 // authMiddleware:
-//   - /health — public
-//   - X-Secret == API_SECRET — server-to-server (полный доступ, без user_id в контексте)
+//   - /health и /tg/webhook — public (последний защищён secret_token Telegram)
 //   - X-Telegram-Init-Data — валидируем HMAC, апсертим юзера, кладём user_id в контекст
 //   - иначе 401
+//
+// X-Secret-бэкдор удалён — нигде не использовался, риск утечки переменной
+// превышал пользу. Если когда-то понадобится server-to-server — пишите
+// отдельный middleware с явным whitelist'ом эндпоинтов.
 func authMiddleware(db *sql.DB) gin.HandlerFunc {
-	apiSecret := os.Getenv("API_SECRET")
 	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
+	if botToken == "" {
+		log.Fatal("TELEGRAM_BOT_TOKEN is required in .env")
+	}
 
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
@@ -100,14 +150,7 @@ func authMiddleware(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 1) Server-to-server по shared secret
-		if apiSecret != "" && c.GetHeader("X-Secret") == apiSecret {
-			c.Set("auth_type", "secret")
-			c.Next()
-			return
-		}
-
-		// 2) Telegram WebApp initData
+		// Telegram WebApp initData
 		raw := c.GetHeader("X-Telegram-Init-Data")
 		if raw == "" {
 			// fallback — некоторые SDK кладут в Authorization: tma <initData>
@@ -123,8 +166,7 @@ func authMiddleware(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 24h max age — anti-replay
-		data, err := auth.ParseAndValidate(raw, botToken, 24*time.Hour)
+		data, err := auth.ParseAndValidate(raw, botToken, initDataMaxAge)
 		if err != nil {
 			response.Err(c, http.StatusUnauthorized, "INVALID_INIT_DATA", err.Error())
 			c.Abort()
@@ -156,7 +198,6 @@ func authMiddleware(db *sql.DB) gin.HandlerFunc {
 			}
 		}
 
-		c.Set("auth_type", "telegram")
 		c.Set("user_id", userID)
 		c.Set("tg_user", data.User)
 		c.Next()

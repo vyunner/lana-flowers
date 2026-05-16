@@ -88,7 +88,7 @@ func listOffers(c *gin.Context, db *sql.DB, role string) {
 		       cp.user_id,
 		       COALESCE(NULLIF(cp.display_name, ''), TRIM(CONCAT(cp.first_name, ' ', cp.last_name))) AS cp_name,
 		       COALESCE(cp.avatar_url, ''),
-		       CASE WHEN o.status = 'accepted' THEN COALESCE(cp.phone_number, '') ELSE '' END AS cp_phone
+		       CASE WHEN o.status = '` + OfferAccepted + `' THEN COALESCE(cp.phone_number, '') ELSE '' END AS cp_phone
 		FROM offers o
 		JOIN bouquets b ON b.id = o.bouquet_id
 		JOIN users cp ON cp.user_id = ` + otherField + `

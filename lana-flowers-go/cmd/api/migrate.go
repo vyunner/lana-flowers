@@ -118,7 +118,7 @@ func ignoreNoChange(err error) error {
 }
 
 func printMigrateHelp() {
-	fmt.Println(`Usage:
+	fmt.Print(`Usage:
   go run ./cmd/api migrate up
   go run ./cmd/api migrate down [steps]    (default 1)
   go run ./cmd/api migrate reset           (DOWN ALL)

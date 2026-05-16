@@ -18,7 +18,19 @@ import (
 
 const miniAppURL = "https://lana-flowers.vercel.app"
 
+// webhookSecret кэшируется на старте — в проде должен быть задан, иначе
+// /tg/webhook открыт миру и любой может слать поддельные callback_query
+// от лица любого user_id.
+var webhookSecret string
+
 func RegisterRoutes(r *gin.Engine, db *sql.DB) {
+	webhookSecret = os.Getenv("TELEGRAM_WEBHOOK_SECRET")
+	if webhookSecret == "" && os.Getenv("APP_ENV") == "production" {
+		log.Fatal("TELEGRAM_WEBHOOK_SECRET is required in production (.env)")
+	}
+	if webhookSecret == "" {
+		log.Print("WARN: TELEGRAM_WEBHOOK_SECRET is empty — webhook unauthenticated (OK only in development)")
+	}
 	r.POST("/tg/webhook", func(c *gin.Context) { Handle(c, db) })
 }
 
@@ -66,8 +78,9 @@ type CallbackQuery struct {
 }
 
 func Handle(c *gin.Context, db *sql.DB) {
-	expected := os.Getenv("TELEGRAM_WEBHOOK_SECRET")
-	if expected != "" && c.GetHeader("X-Telegram-Bot-Api-Secret-Token") != expected {
+	// Если secret задан — header обязан совпадать. Если не задан (только в
+	// dev по логу выше) — пропускаем без проверки.
+	if webhookSecret != "" && c.GetHeader("X-Telegram-Bot-Api-Secret-Token") != webhookSecret {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
@@ -94,16 +107,16 @@ func Handle(c *gin.Context, db *sql.DB) {
 }
 
 // handleMessage — /start и обычные сообщения.
-func handleMessage(db *sql.DB, m *Message) {
+//
+// _ db / m.From сейчас не нужны: единственная команда — /start, без
+// привязки к user_id (welcome не персонализирован). Если когда-то добавим
+// /myorders или persistent state — вернём userID.
+func handleMessage(_ *sql.DB, m *Message) {
 	if m.From == nil {
 		return
 	}
-	userID := strconv.FormatInt(m.From.ID, 10)
-
-	_ = userID
 	if m.Text == "/start" {
 		sendWelcome(m.Chat.ID)
-		return
 	}
 }
 

@@ -24,10 +24,3 @@ func Err(c *gin.Context, status int, code string, msg string) {
 	})
 }
 
-func ErrData(c *gin.Context, status int, code string, msg string, data any) {
-	c.JSON(status, Response{
-		Code:  code,
-		Data:  data,
-		Error: msg,
-	})
-}

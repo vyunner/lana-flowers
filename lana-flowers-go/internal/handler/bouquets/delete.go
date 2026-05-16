@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
+	"lana-flowers-go/internal/handler/offers"
 	"lana-flowers-go/internal/response"
 
 	"github.com/gin-gonic/gin"
@@ -21,9 +22,9 @@ func Delete(c *gin.Context, db *sql.DB) {
 	id := c.Param("id")
 
 	res, err := db.Exec(`
-		UPDATE bouquets SET status = 'archived', updated_at = NOW()
-		WHERE id = $1 AND seller_id = $2 AND status != 'archived'
-	`, id, uid)
+		UPDATE bouquets SET status = $3, updated_at = NOW()
+		WHERE id = $1 AND seller_id = $2 AND status != $3
+	`, id, uid, offers.BouquetArchived)
 	if err != nil {
 		response.Err(c, http.StatusInternalServerError, "DB_ERROR", err.Error())
 		return

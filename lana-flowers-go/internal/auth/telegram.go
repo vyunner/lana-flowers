@@ -81,7 +81,10 @@ func ParseAndValidate(rawInitData, botToken string, maxAge time.Duration) (*Init
 	calc := hmacSHA256([]byte(dataCheckString), secretKey)
 	calcHex := hex.EncodeToString(calc)
 
-	if !hmac.Equal([]byte(calcHex), []byte(hash)) {
+	// Сравниваем lowercase-байты. Telegram отдаёт hash в lowercase, но если
+	// какой-то клиент / прокси нормализует регистр — не хотим отбивать валидные
+	// запросы как 401.
+	if !hmac.Equal([]byte(calcHex), []byte(strings.ToLower(hash))) {
 		return nil, fmt.Errorf("hash mismatch")
 	}
 

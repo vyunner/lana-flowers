@@ -208,6 +208,13 @@ func SetWebhook(url, secretToken string) error {
 	return nil
 }
 
+// call с retry+backoff. Telegram изредка отдаёт 429/5xx — без retry'я мы
+// просто теряем уведомления (notify-функции работают через `go ...` без
+// очереди). Три попытки с 0/300/900ms — на нагрузку не повлияет, но
+// поднимет deliverability ~до 99% (по нашему опыту нативное окно сбоев
+// у telegram-api — единицы секунд).
+const maxRetries = 3
+
 func call(method string, body any, out any) error {
 	tk := token()
 	if tk == "" {
@@ -219,21 +226,39 @@ func call(method string, body any, out any) error {
 		return err
 	}
 
-	req, err := http.NewRequest("POST", apiBase+tk+"/"+method, bytes.NewReader(buf))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
+	var lastErr error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			// 300ms, 900ms — экспонента с базой 3.
+			time.Sleep(time.Duration(attempt*attempt) * 300 * time.Millisecond)
+		}
 
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+		req, err := http.NewRequest("POST", apiBase+tk+"/"+method, bytes.NewReader(buf))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
 
-	respBody, _ := io.ReadAll(resp.Body)
-	if err := json.Unmarshal(respBody, out); err != nil {
-		return fmt.Errorf("decode response: %w (body: %s)", err, string(respBody))
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			lastErr = err
+			continue // сетевая ошибка — retry
+		}
+
+		respBody, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		// 5xx и 429 — retry; всё остальное (4xx, 2xx) — финал, не пытаемся снова
+		// потому что Telegram уже сказал «бизнесово неверно» (например невалидный chat_id).
+		if resp.StatusCode >= 500 || resp.StatusCode == 429 {
+			lastErr = fmt.Errorf("telegram HTTP %d", resp.StatusCode)
+			continue
+		}
+
+		if err := json.Unmarshal(respBody, out); err != nil {
+			return fmt.Errorf("decode response: %w (body: %s)", err, string(respBody))
+		}
+		return nil
 	}
-	return nil
+	return lastErr
 }
