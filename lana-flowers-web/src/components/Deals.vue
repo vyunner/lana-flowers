@@ -3,10 +3,12 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { haptic, hapticNotify } from '../telegram'
 import { getAllMyOffers, respondOffer } from '../api/offers'
 import { useApi } from '../composables/useApi'
-import { usePullToRefresh } from '../composables/usePullToRefresh'
+import { formatPrice } from '../utils/format'
+import { confirm, alert } from '../utils/dialog'
 import EmptyState from './EmptyState.vue'
 import CounterPriceModal from './CounterPriceModal.vue'
 import ContactSheet from './ContactSheet.vue'
+import PullToRefreshScroll from './base/PullToRefreshScroll.vue'
 
 const props = defineProps({
   // pendingCounterOfferId — оффер, для которого надо сразу открыть counter-модалку
@@ -19,15 +21,11 @@ const deals = useApi(getAllMyOffers)
 
 async function load() {
   await deals.run()
-  // как только данные загрузились — раздаём родителю количество «ждущих ответа от меня»
   emit('deals-updated', actionableCount.value)
 }
 
 onMounted(load)
 defineExpose({ refresh: load })
-
-const scrollRef = ref(null)
-const { pullDistance, refreshing, dragging } = usePullToRefresh(scrollRef, load)
 
 // ---- Фильтр ----
 const filter = ref('active') // 'active' | 'history'
@@ -69,20 +67,20 @@ async function confirmCounter({ offerId, price }) {
     counterModalOpen.value = false
     await load()
   } catch (e) {
-    alert('Не удалось: ' + (e.message || e))
+    await alert('Не удалось: ' + (e.message || e))
   }
 }
 
 async function accept(offer) {
   if (busyOfferId.value) return
-  if (!confirm(`Принять ${formatPrice(offer.price)} ₸ за «${offer.bouquet.title}»?`)) return
+  if (!(await confirm(`Принять ${formatPrice(offer.price)} ₸ за «${offer.bouquet.title}»?`))) return
   busyOfferId.value = offer.id
   try {
     await respondOffer(offer.id, { action: 'accept' })
     hapticNotify('success')
     await load()
   } catch (e) {
-    alert('Ошибка: ' + (e.message || e))
+    await alert('Ошибка: ' + (e.message || e))
   } finally {
     busyOfferId.value = null
   }
@@ -90,14 +88,14 @@ async function accept(offer) {
 
 async function reject(offer) {
   if (busyOfferId.value) return
-  if (!confirm(`Отклонить предложение ${formatPrice(offer.price)} ₸?`)) return
+  if (!(await confirm(`Отклонить предложение ${formatPrice(offer.price)} ₸?`))) return
   busyOfferId.value = offer.id
   try {
     await respondOffer(offer.id, { action: 'reject' })
     hapticNotify('warning')
     await load()
   } catch (e) {
-    alert('Ошибка: ' + (e.message || e))
+    await alert('Ошибка: ' + (e.message || e))
   } finally {
     busyOfferId.value = null
   }
@@ -105,20 +103,17 @@ async function reject(offer) {
 
 async function cancelDeal(offer) {
   if (busyOfferId.value) return
-  if (
-    !confirm(
-      `Отменить сделку?\n\nБукет «${offer.bouquet.title}» вернётся в продажу, ${offer.counterparty.name} получит уведомление.`,
-    )
-  ) {
-    return
-  }
+  const ok = await confirm(
+    `Отменить сделку? Букет «${offer.bouquet.title}» вернётся в продажу, ${offer.counterparty.name} получит уведомление.`,
+  )
+  if (!ok) return
   busyOfferId.value = offer.id
   try {
     await respondOffer(offer.id, { action: 'cancel' })
     hapticNotify('warning')
     await load()
   } catch (e) {
-    alert('Ошибка: ' + (e.message || e))
+    await alert('Ошибка: ' + (e.message || e))
   } finally {
     busyOfferId.value = null
   }
@@ -138,18 +133,13 @@ watch(
     const offer = list.find((o) => String(o.id) === String(targetId))
     if (offer && offer.status === 'pending') {
       openCounter(offer)
-      // сбрасываем флаг чтобы повторно не открывать
       emit('deals-updated', actionableCount.value)
     }
   },
   { immediate: true },
 )
 
-// ---- Хелперы ----
-function formatPrice(n) {
-  return new Intl.NumberFormat('ru-RU').format(Number(n) || 0)
-}
-
+// ---- Хелперы статусов/ролей ----
 function statusLabel(o) {
   if (o.status === 'accepted') return 'Принято'
   if (o.status === 'rejected') return 'Отклонено'
@@ -174,18 +164,8 @@ function roleLabel(o) {
 </script>
 
 <template>
-  <div ref="scrollRef" class="deals">
-    <div
-      class="deals-inner"
-      :style="{
-        transform: `translateY(${pullDistance}px)`,
-        transition: dragging ? 'none' : 'transform .25s cubic-bezier(.2,.8,.2,1)',
-      }"
-    >
-      <div class="ptr" :class="{ spinning: refreshing || pullDistance >= 60 }">
-        <span class="ptr-spinner"></span>
-      </div>
-
+  <PullToRefreshScroll @refresh="load">
+    <div class="deals-inner">
       <div class="filter">
         <button
           type="button"
@@ -278,45 +258,13 @@ function roleLabel(o) {
       :counterparty="contactCounterparty"
       @close="contactSheetOpen = false"
     />
-  </div>
+  </PullToRefreshScroll>
 </template>
 
 <style scoped>
-.deals {
-  position: relative;
-  flex: 1;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-}
 .deals-inner {
-  position: relative;
   padding: 8px 16px calc(120px + env(safe-area-inset-bottom, 0px));
-  will-change: transform;
 }
-
-.ptr {
-  position: absolute;
-  top: -52px;
-  left: 0;
-  right: 0;
-  height: 52px;
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  pointer-events: none;
-  padding-bottom: 14px;
-}
-.ptr-spinner {
-  width: 22px;
-  height: 22px;
-  border: 2px solid var(--border);
-  border-top-color: var(--text);
-  border-radius: 50%;
-}
-.ptr.spinning .ptr-spinner {
-  animation: spin 0.8s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
 
 .filter {
   display: flex;

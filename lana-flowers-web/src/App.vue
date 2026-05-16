@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { categories } from './data/bouquets'
+import { categories } from './data/categories'
 import { haptic, hapticNotify } from './telegram'
 import { currentStep, setMe } from './state/auth'
 import { getMe } from './api/users'

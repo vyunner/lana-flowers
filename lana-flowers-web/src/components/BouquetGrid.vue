@@ -2,10 +2,11 @@
 import { ref, watch, onMounted, computed } from 'vue'
 import { listBouquets } from '../api/bouquets'
 import { useApi } from '../composables/useApi'
-import { usePullToRefresh } from '../composables/usePullToRefresh'
 import { me } from '../state/auth'
+import { formatPriceKzt } from '../utils/format'
 import BouquetCard from './BouquetCard.vue'
 import EmptyState from './EmptyState.vue'
+import PullToRefreshScroll from './base/PullToRefreshScroll.vue'
 
 const props = defineProps({
   category: { type: String, required: true },
@@ -14,6 +15,7 @@ const props = defineProps({
 const emit = defineEmits(['scroll', 'offer', 'open'])
 
 const fading = ref(false)
+const ptrRef = ref(null)
 
 const { data, loading, error, run } = useApi(() =>
   listBouquets({ city: props.city, category: props.category }),
@@ -24,7 +26,7 @@ async function reload() {
   try {
     await run()
   } catch (e) {
-    // Ошибка уже в state
+    // Ошибка уже в state, рендерится в .status
   } finally {
     requestAnimationFrame(() => (fading.value = false))
   }
@@ -32,56 +34,31 @@ async function reload() {
 
 defineExpose({ refresh: reload })
 
-const feedRef = ref(null)
-const { pullDistance, refreshing, dragging } = usePullToRefresh(feedRef, run)
-
 onMounted(reload)
 watch(() => [props.category, props.city], reload)
 
 const items = computed(() => data.value || [])
 
-const ruFmt = new Intl.NumberFormat('ru-RU')
-
 function adapt(b) {
   return {
     id: b.id,
-    price: ruFmt.format(b.price) + ' ₸',
+    price: formatPriceKzt(b.price),
     name: b.title,
     seller: b.seller?.display_name || 'Продавец',
     avatar: b.seller?.avatar_url || '',
     photo: (b.photos && b.photos[0]) || '',
     isOwn: !!(me.value && b.seller_id === me.value.user_id),
-    // pending-оффер текущего юзера на этот букет (если есть)
-    myOffer: b.my_offer ? { id: b.my_offer.id, price: ruFmt.format(b.my_offer.price) + ' ₸' } : null,
+    myOffer: b.my_offer
+      ? { id: b.my_offer.id, price: formatPriceKzt(b.my_offer.price) }
+      : null,
     raw: b,
   }
-}
-
-let ticking = false
-function onScroll(e) {
-  if (ticking) return
-  ticking = true
-  const y = e.target.scrollTop
-  requestAnimationFrame(() => {
-    emit('scroll', y)
-    ticking = false
-  })
 }
 </script>
 
 <template>
-  <div ref="feedRef" class="feed" @scroll.passive="onScroll">
-    <div
-      class="feed-inner"
-      :style="{
-        transform: `translateY(${pullDistance}px)`,
-        transition: dragging ? 'none' : 'transform .25s cubic-bezier(.2,.8,.2,1)',
-      }"
-    >
-      <div class="ptr" :class="{ spinning: refreshing || pullDistance >= 60 }">
-        <span class="ptr-spinner"></span>
-      </div>
-
+  <PullToRefreshScroll ref="ptrRef" @refresh="run" @scroll="(y) => emit('scroll', y)">
+    <div class="feed-inner">
       <div v-if="loading && items.length === 0" class="status">
         <span class="spinner"></span>
       </div>
@@ -103,47 +80,12 @@ function onScroll(e) {
         <EmptyState v-if="items.length === 0" text="В этом городе пока нет букетов" />
       </div>
     </div>
-  </div>
+  </PullToRefreshScroll>
 </template>
 
 <style scoped>
-.feed {
-  position: relative;
-  flex: 1;
-  overflow-y: auto;
-  /* iOS: убираем системный bounce — будет наш pull-to-refresh */
-  overscroll-behavior-y: contain;
-}
 .feed-inner {
-  position: relative; /* якорь для абсолютного .ptr */
   padding: 0 16px calc(120px + env(safe-area-inset-bottom, 0px));
-  will-change: transform;
-}
-
-/* Спиннер ABSOLUTE'ом над верхним краем inner'а — он не в потоке, поэтому
-   карточки начинаются ровно с y=0 и НЕ обрезаются. На pull inner ползёт вниз
-   вместе со спиннером (transform применяется к родителю → к children тоже). */
-.ptr {
-  position: absolute;
-  top: -52px;
-  left: 0;
-  right: 0;
-  height: 52px;
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  pointer-events: none;
-  padding-bottom: 14px;
-}
-.ptr-spinner {
-  width: 22px;
-  height: 22px;
-  border: 2px solid var(--border);
-  border-top-color: var(--text);
-  border-radius: 50%;
-}
-.ptr.spinning .ptr-spinner {
-  animation: spin 0.8s linear infinite;
 }
 
 .grid {
@@ -157,7 +99,6 @@ function onScroll(e) {
 }
 
 .status {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -175,9 +116,8 @@ function onScroll(e) {
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .retry {
   background: var(--primary);
   color: var(--primary-text);

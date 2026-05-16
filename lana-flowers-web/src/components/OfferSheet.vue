@@ -1,6 +1,9 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { createOffer } from '../api/offers'
+import { formatPrice, parsePrice } from '../utils/format'
+import BaseModal from './base/BaseModal.vue'
+import StatusState from './base/StatusState.vue'
 
 const props = defineProps({
   open: { type: Boolean, required: true },
@@ -8,22 +11,14 @@ const props = defineProps({
 })
 const emit = defineEmits(['close', 'submitted'])
 
-function parsePrice(str) {
-  const n = parseInt(String(str).replace(/\D/g, ''), 10)
-  return Number.isFinite(n) ? n : 0
-}
-function formatPrice(n) {
-  return new Intl.NumberFormat('ru-RU').format(n)
-}
-
 const sellerPrice = computed(() => (props.bouquet ? parsePrice(props.bouquet.price) : 0))
 const value = ref(0)
 const submitting = ref(false)
 const errorText = ref('')
 const selfError = ref(false)
 const duplicateError = ref(false)
-const unavailableError = ref(false) // букет уже снят / продан / удалён
-const sentState = ref(false) // success-экран после отправки
+const unavailableError = ref(false)
+const sentState = ref(false)
 const sentPrice = ref(0)
 
 watch(
@@ -41,14 +36,12 @@ watch(
   },
 )
 
-// Только read-only форматирование — ввод цены идёт исключительно через ±-кнопки.
-const display = computed(() => formatPrice(value.value))
-
 function adjust(delta) {
   value.value = Math.max(0, value.value + delta)
 }
 
 const canSubmit = computed(() => value.value > 0 && !submitting.value)
+const diff = computed(() => value.value - sellerPrice.value)
 
 async function submit() {
   if (!canSubmit.value) return
@@ -59,9 +52,12 @@ async function submit() {
     const result = await createOffer({ bouquetId, price: value.value })
     sentPrice.value = value.value
     sentState.value = true
-    // Сигнал родителю — обновить ленту (там появится бейдж «Предложено»).
-    // Модалку родитель НЕ закрывает, пользователь сам закрывает после success.
-    emit('submitted', { bouquet: props.bouquet, price: value.value, ...result, keepOpen: true })
+    emit('submitted', {
+      bouquet: props.bouquet,
+      price: value.value,
+      ...result,
+      keepOpen: true,
+    })
   } catch (e) {
     if (e.code === 'SELF_OFFER') {
       selfError.value = true
@@ -69,8 +65,6 @@ async function submit() {
       duplicateError.value = true
     } else if (e.code === 'BOUQUET_UNAVAILABLE') {
       unavailableError.value = true
-      // Сигнал родителю что список протух — пусть рефрешит каталог.
-      // closeOnly=true → не считать это успешным оффером, бейдж не нужен.
       emit('submitted', { bouquet: props.bouquet, unavailable: true })
     } else {
       errorText.value = e.message || 'Ошибка при отправке'
@@ -79,67 +73,53 @@ async function submit() {
     submitting.value = false
   }
 }
-
-const diff = computed(() => value.value - sellerPrice.value)
 </script>
 
 <template>
-  <Teleport to="body">
-    <div class="offer-overlay" :class="{ open }" @click="$emit('close')"></div>
-    <div class="offer-modal" :class="{ open }" role="dialog" aria-modal="true">
-      <!-- Успех: оффер отправлен -->
-      <div v-if="sentState" class="self-state">
-        <h3 class="self-title">Предложение отправлено</h3>
-        <p class="self-text">
-          Вы предложили <strong>{{ formatPrice(sentPrice) }} ₸</strong>. Продавец получит уведомление в Telegram.
-        </p>
-        <button class="submit-btn" type="button" @click="$emit('close')">
-          Понятно
-        </button>
-      </div>
+  <BaseModal :open="open" @close="$emit('close')">
+    <StatusState
+      v-if="sentState"
+      title="Предложение отправлено"
+      @cta="$emit('close')"
+    >
+      Вы предложили <strong>{{ formatPrice(sentPrice) }} ₸</strong>.
+      Продавец получит уведомление в Telegram.
+    </StatusState>
 
-      <!-- Уже есть активное предложение от этого юзера -->
-      <div v-else-if="duplicateError" class="self-state">
-        <h3 class="self-title">Предложение уже отправлено</h3>
-        <p class="self-text">
-          Дождитесь ответа продавца. Если он отклонит или предложит встречную цену — сможете снова сделать предложение.
-        </p>
-        <button class="submit-btn" type="button" @click="$emit('close')">
-          Понятно
-        </button>
-      </div>
+    <StatusState
+      v-else-if="duplicateError"
+      title="Предложение уже отправлено"
+      @cta="$emit('close')"
+    >
+      Дождитесь ответа продавца. Если он отклонит или предложит встречную цену —
+      сможете снова сделать предложение.
+    </StatusState>
 
-      <!-- Попытка купить свой же букет -->
-      <div v-else-if="selfError" class="self-state">
-        <div class="self-icon">🛍</div>
-        <h3 class="self-title">Это ваше объявление</h3>
-        <p class="self-text">
-          Нельзя сделать предложение на свой собственный букет.
-        </p>
-        <button class="submit-btn" type="button" @click="$emit('close')">
-          Понятно
-        </button>
-      </div>
+    <StatusState
+      v-else-if="selfError"
+      icon="🛍"
+      title="Это ваше объявление"
+      @cta="$emit('close')"
+    >
+      Нельзя сделать предложение на свой собственный букет.
+    </StatusState>
 
-      <!-- Букет уже снят / продан / удалён, у юзера протухшая карточка -->
-      <div v-else-if="unavailableError" class="self-state">
-        <h3 class="self-title">Объявление больше не активно</h3>
-        <p class="self-text">
-          Продавец снял букет с продажи или он уже продан. Каталог обновится.
-        </p>
-        <button class="submit-btn" type="button" @click="$emit('close')">
-          Понятно
-        </button>
-      </div>
+    <StatusState
+      v-else-if="unavailableError"
+      title="Объявление больше не активно"
+      @cta="$emit('close')"
+    >
+      Продавец снял букет с продажи или он уже продан. Каталог обновится.
+    </StatusState>
 
-      <template v-else>
+    <template v-else>
       <div class="ctx">
-        Продавец просит <strong>{{ bouquet ? formatPrice(sellerPrice) : 0 }} ₸</strong>
+        Продавец просит <strong>{{ formatPrice(sellerPrice) }} ₸</strong>
       </div>
 
       <div class="price-row">
         <span class="price-display">
-          <span class="num">{{ display }}</span>
+          <span class="num">{{ formatPrice(value) }}</span>
           <span class="cur">₸</span>
         </span>
       </div>
@@ -162,51 +142,11 @@ const diff = computed(() => value.value - sellerPrice.value)
         <span v-if="submitting">Отправляю…</span>
         <span v-else>Предложить {{ formatPrice(value) }} ₸</span>
       </button>
-      </template>
-    </div>
-  </Teleport>
+    </template>
+  </BaseModal>
 </template>
 
 <style scoped>
-.offer-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease-out;
-  z-index: 30;
-}
-.offer-overlay.open {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.offer-modal {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  width: calc(100% - 32px);
-  max-width: 360px;
-  background: var(--surface);
-  color: var(--text);
-  border-radius: 18px;
-  padding: 22px 22px 20px;
-  box-shadow: var(--shadow-modal);
-  z-index: 31;
-  transform: translate(-50%, -50%) scale(0.92);
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    transform 0.22s cubic-bezier(0.34, 1.4, 0.64, 1),
-    opacity 0.18s ease-out;
-}
-.offer-modal.open {
-  transform: translate(-50%, -50%) scale(1);
-  opacity: 1;
-  pointer-events: auto;
-}
-
 .ctx {
   text-align: center;
   font-size: 14px;
@@ -218,8 +158,7 @@ const diff = computed(() => value.value - sellerPrice.value)
   font-weight: 600;
 }
 
-/* Цена — только просмотр. Меняется ±-кнопками ниже, ручной ввод выключен,
-   чтобы юзер не залипал на клавиатуру в коротком сценарии торга. */
+/* Цена — только просмотр. Меняется ±-кнопками ниже, ручной ввод выключен. */
 .price-row {
   display: flex;
   justify-content: center;
@@ -244,19 +183,13 @@ const diff = computed(() => value.value - sellerPrice.value)
   text-align: center;
   font-size: 13px;
   color: var(--text-muted);
-  /* Прижато к цене сверху, большой воздух снизу — diff = подпись к цене,
-     а не часть блока с кнопками. */
   margin-top: 6px;
   margin-bottom: 28px;
   min-height: 18px;
   font-weight: 500;
 }
-.diff.minus {
-  color: #d6553f;
-}
-.diff.plus {
-  color: #2c8a52;
-}
+.diff.minus { color: #d6553f; }
+.diff.plus { color: #2c8a52; }
 
 .quick-btns {
   display: grid;
@@ -273,9 +206,7 @@ const diff = computed(() => value.value - sellerPrice.value)
   font-size: 13px;
   font-weight: 600;
   letter-spacing: -0.005em;
-  transition:
-    transform 0.1s ease-out,
-    background 0.15s ease-out;
+  transition: transform 0.1s ease-out, background 0.15s ease-out;
 }
 .quick-btns button:active {
   transform: scale(0.96);
@@ -297,10 +228,7 @@ const diff = computed(() => value.value - sellerPrice.value)
   border: 0;
   font-size: 16px;
   font-weight: 700;
-  transition:
-    background 0.15s ease-out,
-    opacity 0.15s ease-out,
-    transform 0.1s ease-out;
+  transition: background 0.15s, opacity 0.15s, transform 0.1s;
 }
 .submit-btn:active:not(:disabled) {
   transform: scale(0.98);
@@ -308,29 +236,5 @@ const diff = computed(() => value.value - sellerPrice.value)
 }
 .submit-btn:disabled {
   opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Self-offer состояние */
-.self-state {
-  text-align: center;
-  padding: 8px 0 4px;
-}
-.self-icon {
-  font-size: 48px;
-  line-height: 1;
-  margin-bottom: 14px;
-}
-.self-title {
-  font-size: 19px;
-  font-weight: 700;
-  margin: 0 0 8px;
-  color: var(--text);
-}
-.self-text {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin: 0 0 22px;
-  line-height: 1.4;
 }
 </style>
