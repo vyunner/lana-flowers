@@ -50,6 +50,10 @@ func main() {
 		runMigrateCmd(os.Args[2:])
 		return
 	}
+	if len(os.Args) >= 2 && os.Args[1] == "thumbs" {
+		runThumbsCmd(os.Args[2:])
+		return
+	}
 
 	port := getenv("APP_PORT", "8080")
 

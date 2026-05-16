@@ -11,10 +11,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 
+	imgproc "lana-flowers-go/internal/image"
 	"lana-flowers-go/internal/response"
 
 	"github.com/gin-gonic/gin"
@@ -94,6 +96,19 @@ func Upload(c *gin.Context) {
 	if _, err := io.Copy(dst, file); err != nil {
 		response.Err(c, http.StatusInternalServerError, "WRITE", err.Error())
 		return
+	}
+
+	// Закрываем dst перед чтением для thumb-генерации, иначе на некоторых
+	// файловых системах буферы ещё не сброшены и Decode упадёт.
+	_ = dst.Close()
+
+	// Генерируем уменьшенную копию для каталога (400px JPEG q=70).
+	// Если упало — НЕ валим upload: фронт умеет фолбэчить на оригинал
+	// если thumb недоступен. Лучше «без оптимизации» чем «не загрузил».
+	srcPath := filepath.Join(userDir, name)
+	thumbPath := imgproc.ThumbPath(srcPath)
+	if err := imgproc.GenerateThumb(srcPath, thumbPath); err != nil {
+		log.Printf("upload: thumb generation failed for %s: %v", srcPath, err)
 	}
 
 	url := publicBase + "/" + sanitizeUID(uid) + "/" + name

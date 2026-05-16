@@ -5,6 +5,7 @@ import { getAllMyOffers, respondOffer } from '../api/offers'
 import { useApi } from '../composables/useApi'
 import { usePolling } from '../composables/usePolling'
 import { formatPrice } from '../utils/format'
+import { thumbUrl } from '../utils/image'
 import { confirm, alert } from '../utils/dialog'
 import EmptyState from './EmptyState.vue'
 import CounterPriceModal from './CounterPriceModal.vue'
@@ -201,7 +202,7 @@ function roleLabel(o) {
         <li v-for="o in items" :key="o.id" class="row">
           <div
             class="thumb"
-            :style="{ backgroundImage: `url(${o.bouquet.photo || ''})` }"
+            :style="{ backgroundImage: `url(${thumbUrl(o.bouquet.photo || '')})` }"
           ></div>
 
           <div class="body">

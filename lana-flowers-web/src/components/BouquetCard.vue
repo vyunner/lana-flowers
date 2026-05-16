@@ -1,8 +1,16 @@
 <script setup>
-defineProps({
+import { ref } from 'vue'
+import { thumbUrl } from '../utils/image'
+
+const props = defineProps({
   bouquet: { type: Object, required: true },
 })
 defineEmits(['offer', 'open'])
+
+// useThumb=false → перешли на оригинал после 404 на thumb (старые фотки
+// до бэк-генерации не имеют _thumb.jpg). Один раз на карточку.
+const useThumb = ref(true)
+function onPhotoError() { useThumb.value = false }
 </script>
 
 <template>
@@ -10,7 +18,16 @@ defineEmits(['offer', 'open'])
        тоже принимает тапы, но через @click.stop — иначе оба хендлера
        сработают и юзер уйдёт в деталь вместо отправки оффера. -->
   <article class="card" @click="$emit('open', bouquet)">
-    <div class="photo" :style="{ backgroundImage: `url('${bouquet.photo}')` }"></div>
+    <img
+      v-if="bouquet.photo"
+      class="photo"
+      :src="useThumb ? thumbUrl(bouquet.photo) : bouquet.photo"
+      :alt="bouquet.name"
+      loading="lazy"
+      decoding="async"
+      @error="onPhotoError"
+    />
+    <div v-else class="photo placeholder"></div>
     <div class="body">
       <div class="price">{{ bouquet.price }}</div>
       <div class="name">{{ bouquet.name }}</div>
@@ -56,9 +73,13 @@ defineEmits(['offer', 'open'])
 .photo {
   width: 100%;
   aspect-ratio: 4 / 5;
+  object-fit: cover;
+  display: block;
   background-color: var(--photo-bg);
-  background-size: cover;
-  background-position: center;
+}
+.photo.placeholder {
+  /* «дырка» если photo пустой — серый прямоугольник вместо broken-image */
+  background-color: var(--photo-bg);
 }
 
 .body {

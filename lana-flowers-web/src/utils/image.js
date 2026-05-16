@@ -65,3 +65,21 @@ function renameToJpg(name) {
   const i = name.lastIndexOf('.')
   return (i > 0 ? name.slice(0, i) : name) + '.jpg'
 }
+
+/**
+ * thumbUrl — для каталога/списков, где фото показывается мелко.
+ * Бэк при upload кладёт <name>_thumb.jpg рядом с оригиналом (400px
+ * JPEG q=70, ~30-80KB вместо ~500KB оригинала).
+ *
+ * Если URL'а нет или формат странный — возвращаем оригинал (fallback).
+ * Если thumb физически не сгенерирован (старые фотки до фичи) — сервер
+ * вернёт 404 и браузер покажет broken-image. Фронт защищается через
+ * <img onerror>, который переключает на оригинал.
+ */
+export function thumbUrl(originalUrl) {
+  if (!originalUrl) return ''
+  const dot = originalUrl.lastIndexOf('.')
+  const slash = originalUrl.lastIndexOf('/')
+  if (dot < 0 || dot < slash) return originalUrl
+  return originalUrl.slice(0, dot) + '_thumb.jpg'
+}

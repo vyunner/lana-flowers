@@ -6,6 +6,7 @@ import { useApi } from '../composables/useApi'
 import { usePolling } from '../composables/usePolling'
 import { me } from '../state/auth'
 import { formatPrice } from '../utils/format'
+import { thumbUrl } from '../utils/image'
 import { confirm, alert } from '../utils/dialog'
 import EditProfileModal from './EditProfileModal.vue'
 import PullToRefreshScroll from './base/PullToRefreshScroll.vue'
@@ -100,7 +101,7 @@ function statusColor(s) {
           <li v-for="b in myBouquets.data.value" :key="b.id" class="row">
             <div
               class="thumb"
-              :style="{ backgroundImage: `url(${b.photos?.[0] || ''})` }"
+              :style="{ backgroundImage: `url(${thumbUrl(b.photos?.[0] || '')})` }"
             ></div>
             <div class="row-body">
               <div class="row-title">{{ b.title }}</div>
