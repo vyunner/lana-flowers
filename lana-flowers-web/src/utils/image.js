@@ -19,14 +19,19 @@ export async function resizeImage(file) {
     return file
   }
   try {
-    const bitmap = await createImageBitmap(file)
+    // imageOrientation: 'from-image' — критично: iPhone снимает фото в
+    // физически landscape-пикселях с EXIF-тегом поворота. Без этого флага
+    // createImageBitmap возвращает сырые пиксели, EXIF теряется, canvas →
+    // JPEG записывает повёрнутую картинку как «правильную». Браузеры до
+    // ~2020 имели разный дефолт, явный from-image гарантирует ориентацию
+    // на всех платформах.
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
     let { width, height } = bitmap
-    if (width <= MAX_DIM && height <= MAX_DIM && file.size < 1.5 * 1024 * 1024) {
-      // Маленькое и так — не трогаем (избегаем потери качества от
-      // лишнего пережатия).
-      bitmap.close()
-      return file
-    }
+    // ВНИМАНИЕ: НЕ возвращаем оригинал даже если файл маленький — EXIF в
+    // нём может быть, а бэк-thumb генератор (Go image/jpeg) ориентацию не
+    // применяет → thumb приедет повёрнутым. Лучше один лишний прогон
+    // через canvas (потеря качества при q=0.85 минимальна) чем
+    // непредсказуемый поворот в каталоге.
     if (width > MAX_DIM || height > MAX_DIM) {
       const scale = Math.min(MAX_DIM / width, MAX_DIM / height)
       width = Math.round(width * scale)
