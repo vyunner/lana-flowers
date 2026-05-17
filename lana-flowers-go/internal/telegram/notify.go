@@ -124,13 +124,21 @@ func sendPhotoOrText(chatID int64, photoURL, text string, markup *InlineKeyboard
 
 // sendStructured — HTML-сообщение с опциональной разметкой кнопок. Единый
 // ParseMode и лог-формат для всех итоговых уведомлений без фото.
+//
+// ВАЖНО: typed nil pointer (*InlineKeyboardMarkup)(nil), приведённый к
+// interface{}, превращается в JSON `null`, а Telegram на это отвечает
+// «object expected as reply markup». Поэтому проверяем явно: если markup
+// nil — вообще не ставим поле в req.
 func sendStructured(chatID int64, text string, markup *InlineKeyboardMarkup, tag string) {
-	if _, err := SendMessage(SendMessageReq{
-		ChatID:      chatID,
-		Text:        text,
-		ParseMode:   "HTML",
-		ReplyMarkup: markup,
-	}); err != nil {
+	req := SendMessageReq{
+		ChatID:    chatID,
+		Text:      text,
+		ParseMode: "HTML",
+	}
+	if markup != nil {
+		req.ReplyMarkup = markup
+	}
+	if _, err := SendMessage(req); err != nil {
 		log.Printf("notify %s chat=%d: %v", tag, chatID, err)
 	}
 }
