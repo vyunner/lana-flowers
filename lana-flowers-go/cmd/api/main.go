@@ -2,13 +2,11 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -22,7 +20,6 @@ import (
 	"lana-flowers-go/internal/handler/upload"
 	"lana-flowers-go/internal/handler/users"
 	"lana-flowers-go/internal/handler/webhook"
-	"lana-flowers-go/internal/response"
 	"lana-flowers-go/internal/telegram"
 
 	"github.com/gin-contrib/cors"
@@ -37,11 +34,6 @@ func getenv(key, def string) string {
 	}
 	return v
 }
-
-// initDataMaxAge — окно anti-replay для Telegram initData. Telegram-доки рекомендуют
-// порядок часа; 3ч — компромисс между UX (юзер открыл мини-апп, отвлёкся, вернулся)
-// и безопасностью (украденный initData нельзя реплеить сутками).
-const initDataMaxAge = 3 * time.Hour
 
 func main() {
 	_ = godotenv.Load()
@@ -98,10 +90,9 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
 
-	// Background-воркер: ставит pending-офферы старше 7 дней в expired
-	// и шлёт DM/SSE покупателям. Без него inbox продавца раздувается
-	// мёртвыми предложениями годами. Останавливается через workerCtx
-	// при shutdown.
+	// Background-воркер: ставит pending-офферы старше TTL в expired и шлёт
+	// DM/SSE покупателям. Без него inbox продавца раздувается мёртвыми
+	// предложениями. Останавливается через workerCtx при shutdown.
 	workerCtx, stopWorkers := context.WithCancel(context.Background())
 	defer stopWorkers()
 	offers.StartPendingExpireWorker(workerCtx, conn)
@@ -109,7 +100,7 @@ func main() {
 	// Webhook регистрируется ДО auth middleware — защищён secret_token'ом самого Telegram.
 	webhook.RegisterRoutes(r, conn)
 
-	r.Use(authMiddleware(conn))
+	r.Use(auth.Middleware(conn))
 
 	users.RegisterRoutes(r, conn)
 	bouquets.RegisterRoutes(r, conn)
@@ -119,7 +110,7 @@ func main() {
 
 	// Graceful shutdown: ловим SIGTERM/SIGINT, даём 10s in-flight запросам
 	// нормально закончиться вместо kill -9. Без этого деплой обрывает
-	// горутины nofity'ев и in-flight POST'ы.
+	// горутины notify'ев и in-flight POST'ы.
 	srv := &http.Server{
 		Addr:    ":" + port,
 		Handler: r,
@@ -154,100 +145,4 @@ func main() {
 	// шанс долететь до Telegram API ещё пару секунд.
 	telegram.WaitNotifications(3 * time.Second)
 	log.Print("server stopped")
-}
-
-// authMiddleware:
-//   - /health и /tg/webhook — public (последний защищён secret_token Telegram)
-//   - X-Telegram-Init-Data — валидируем HMAC, апсертим юзера, кладём user_id в контекст
-//   - иначе 401
-//
-// X-Secret-бэкдор удалён — нигде не использовался, риск утечки переменной
-// превышал пользу. Если когда-то понадобится server-to-server — пишите
-// отдельный middleware с явным whitelist'ом эндпоинтов.
-func authMiddleware(db *sql.DB) gin.HandlerFunc {
-	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
-	if botToken == "" {
-		log.Fatal("TELEGRAM_BOT_TOKEN is required in .env")
-	}
-
-	return func(c *gin.Context) {
-		path := c.Request.URL.Path
-		if path == "/health" || path == "/tg/webhook" {
-			c.Next()
-			return
-		}
-
-		// Telegram WebApp initData
-		raw := c.GetHeader("X-Telegram-Init-Data")
-		if raw == "" {
-			// fallback — некоторые SDK кладут в Authorization: tma <initData>
-			authHeader := c.GetHeader("Authorization")
-			if strings.HasPrefix(authHeader, "tma ") {
-				raw = strings.TrimPrefix(authHeader, "tma ")
-			}
-		}
-		if raw == "" {
-			// SSE-fallback: EventSource в браузере НЕ умеет custom headers,
-			// поэтому /events приходит с initData в query (?tma=...).
-			raw = c.Query("tma")
-		}
-
-		if raw == "" {
-			response.Err(c, http.StatusUnauthorized, "UNAUTHORIZED", "missing init data")
-			c.Abort()
-			return
-		}
-
-		data, err := auth.ParseAndValidate(raw, botToken, initDataMaxAge)
-		if err != nil {
-			response.Err(c, http.StatusUnauthorized, "INVALID_INIT_DATA", err.Error())
-			c.Abort()
-			return
-		}
-		if data.User == nil {
-			response.Err(c, http.StatusUnauthorized, "MISSING_USER", "init data has no user")
-			c.Abort()
-			return
-		}
-
-		userID := strconv.FormatInt(data.User.ID, 10)
-
-		// Auto-upsert юзера: создаём если новый (без phone_number), обновляем кэшированный
-		// профиль из Telegram.
-		if err := upsertUser(db, userID, data.User); err != nil {
-			log.Printf("upsert user %s: %v", userID, err)
-		}
-
-		// Гейт: phone_number обязателен. Исключения — /users/me (читаем статус)
-		// и /upload (юзер грузит аватарку во время онбординга до телефона).
-		if path != "/users/me" && path != "/upload" {
-			var phone string
-			if err := db.QueryRow(`SELECT phone_number FROM users WHERE user_id = $1`, userID).Scan(&phone); err == nil && phone == "" {
-				response.Err(c, http.StatusForbidden, "NOT_REGISTERED",
-					"Сначала пройдите регистрацию")
-				c.Abort()
-				return
-			}
-		}
-
-		c.Set("user_id", userID)
-		c.Set("tg_user", data.User)
-		c.Next()
-	}
-}
-
-func upsertUser(db *sql.DB, userID string, u *auth.User) error {
-	_, err := db.Exec(`
-		INSERT INTO users (user_id, first_name, last_name, username, photo_url, is_premium, language_code, last_seen_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-		ON CONFLICT (user_id) DO UPDATE SET
-			first_name    = EXCLUDED.first_name,
-			last_name     = EXCLUDED.last_name,
-			username      = EXCLUDED.username,
-			photo_url     = EXCLUDED.photo_url,
-			is_premium    = EXCLUDED.is_premium,
-			language_code = EXCLUDED.language_code,
-			last_seen_at  = NOW()
-	`, userID, u.FirstName, u.LastName, u.Username, u.PhotoURL, u.IsPremium, u.LanguageCode)
-	return err
 }
