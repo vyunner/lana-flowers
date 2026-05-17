@@ -37,7 +37,7 @@ export const MIN_OFFER_PRICE = 100
 /** TTL pending-оффера до auto-expire. ДОЛЖЕН совпадать с PendingTTL в
  *  lana-flowers-go/internal/handler/offers/expire.go — иначе фронт будет
  *  показывать неправильное оставшееся время. */
-export const OFFER_TTL_MS = 7 * 24 * 60 * 60 * 1000
+export const OFFER_TTL_MS = 2 * 60 * 60 * 1000
 
 /** Русское склонение: pluralRu(2, ['день','дня','дней']) → 'дня'. */
 function pluralRu(n, forms) {
