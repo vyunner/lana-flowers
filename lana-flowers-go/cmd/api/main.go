@@ -19,6 +19,7 @@ import (
 	"lana-flowers-go/internal/handler/bouquets"
 	eventshandler "lana-flowers-go/internal/handler/events"
 	"lana-flowers-go/internal/handler/offers"
+	"lana-flowers-go/internal/handler/preview"
 	"lana-flowers-go/internal/handler/upload"
 	"lana-flowers-go/internal/handler/users"
 	"lana-flowers-go/internal/handler/webhook"
@@ -112,6 +113,10 @@ func main() {
 
 	// Webhook регистрируется ДО auth middleware — защищён secret_token'ом самого Telegram.
 	webhook.RegisterRoutes(r, conn)
+
+	// Preview-эндпоинт для dev-проверки in-app toast'ов — тоже ДО middleware,
+	// защищён собственным X-Admin-Secret header. См. internal/handler/preview.
+	preview.RegisterRoutes(r, conn)
 
 	r.Use(authMiddleware(conn))
 
