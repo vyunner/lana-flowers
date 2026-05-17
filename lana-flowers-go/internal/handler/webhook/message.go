@@ -25,31 +25,37 @@ func handleMessage(db *sql.DB, m *Message) {
 	if m.Text == "/start" {
 		sendWelcome(m.Chat.ID)
 		tgID := strconv.FormatInt(m.From.ID, 10)
-		displayName := strings.TrimSpace(m.From.FirstName + " " + m.From.LastName)
+		tgName := strings.TrimSpace(m.From.FirstName + " " + m.From.LastName)
+
+		// Проверяем — уже ли юзер в users (т.е. он не первый раз тут).
+		// Помечаем в нотификации «впервые» vs «вернулся». Полезно понимать
+		// сколько новых vs повторных открытий.
+		var existed bool
+		_ = db.QueryRow(`SELECT EXISTS(SELECT 1 FROM users WHERE user_id = $1)`, tgID).Scan(&existed)
+		label := "впервые"
+		if existed {
+			label = "вернулся"
+		}
+
+		// Язык TG-клиента — полезно для понимания аудитории.
+		lang := m.From.Username // placeholder if no LanguageCode field
+		_ = lang
+
 		go adminbot.Record(db, adminbot.EventUserStarted,
 			map[string]any{
-				"tg_id":        tgID,
-				"display_name": displayName,
-				"username":     m.From.Username,
+				"tg_id":   tgID,
+				"name":    tgName,
+				"username": m.From.Username,
+				"is_new":  !existed,
 			},
-			fmt.Sprintf("👋 <b>Новый /start</b>\n%s%s",
-				escapeName(displayName, tgID), usernameSuffix(m.From.Username)),
+			fmt.Sprintf(
+				"👋 <b>Новый /start</b> · %s\n\n%s\nID: <code>%s</code>",
+				label,
+				adminbot.FormatUser(tgID, tgName, m.From.Username),
+				tgID,
+			),
 		)
 	}
-}
-
-func escapeName(name, tgID string) string {
-	if name == "" {
-		return "tg:" + tgID
-	}
-	return name
-}
-
-func usernameSuffix(u string) string {
-	if u == "" {
-		return ""
-	}
-	return " (@" + u + ")"
 }
 
 // sendWelcome — единое приветствие в боте: текст + кнопка открыть мини-апп.
@@ -95,7 +101,12 @@ func handleContact(db *sql.DB, m *Message) {
 		return
 	}
 
-	_, err := db.Exec(`
+	// RETURNING display_name, city — забираем то что юзер ввёл на онбординге
+	// (display_name и city живут в users-таблице, кладутся через
+	// PATCH /users/me из мини-аппа ДО шара телефона). Этого нет в
+	// EXCLUDED-сете апсерта выше, поэтому существующие значения сохранятся.
+	var displayName, city string
+	err := db.QueryRow(`
 		INSERT INTO users (user_id, first_name, last_name, username, phone_number, last_seen_at)
 		VALUES ($1, $2, $3, $4, $5, NOW())
 		ON CONFLICT (user_id) DO UPDATE SET
@@ -104,7 +115,8 @@ func handleContact(db *sql.DB, m *Message) {
 			username     = EXCLUDED.username,
 			phone_number = EXCLUDED.phone_number,
 			last_seen_at = NOW()
-	`, userID, m.From.FirstName, m.From.LastName, m.From.Username, phone)
+		RETURNING display_name, city
+	`, userID, m.From.FirstName, m.From.LastName, m.From.Username, phone).Scan(&displayName, &city)
 	if err != nil {
 		log.Printf("save phone for %s: %v", userID, err)
 		_, _ = telegram.SendMessage(telegram.SendMessageReq{
@@ -114,18 +126,34 @@ func handleContact(db *sql.DB, m *Message) {
 		return
 	}
 
-	// Phone установлен → юзер прошёл регистрацию (имя/аватар/город уже
-	// до этого через мини-апп задались). Сигналим в админ-бот.
-	displayName := strings.TrimSpace(m.From.FirstName + " " + m.From.LastName)
+	// Phone установлен → юзер прошёл регистрацию. Берём display_name+city
+	// из users (это то что юзер сам ввёл в onboarding), плюс username из
+	// TG, плюс phone из contact'а.
+	if displayName == "" {
+		displayName = strings.TrimSpace(m.From.FirstName + " " + m.From.LastName)
+	}
+	if city == "" {
+		city = "—"
+	}
 	go adminbot.Record(db, adminbot.EventUserRegistered,
 		map[string]any{
 			"tg_id":        userID,
 			"display_name": displayName,
 			"username":     m.From.Username,
+			"city":         city,
 			"phone":        phone,
 		},
-		fmt.Sprintf("✅ <b>Регистрация завершена</b>\n%s%s\n%s",
-			escapeName(displayName, userID), usernameSuffix(m.From.Username), phone),
+		fmt.Sprintf(
+			"✅ <b>Регистрация завершена</b>\n\n"+
+				"Юзер: %s\n"+
+				"Имя: <b>%s</b>\n"+
+				"Город: %s\n"+
+				"Телефон: <code>%s</code>",
+			adminbot.FormatUser(userID, displayName, m.From.Username),
+			adminbot.EscapeHTML(displayName),
+			adminbot.EscapeHTML(city),
+			phone,
+		),
 	)
 }
 

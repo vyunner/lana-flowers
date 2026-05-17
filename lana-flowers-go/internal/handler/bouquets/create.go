@@ -109,20 +109,55 @@ func Create(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	sellerName, sellerUsername, sellerPhone := adminbot.LookupUser(db, uid)
+	descPreview := req.Description
+	if len(descPreview) > 120 {
+		descPreview = descPreview[:120] + "…"
+	}
 	go adminbot.Record(db, adminbot.EventBouquetCreated,
 		map[string]any{
-			"bouquet_id": id,
-			"seller_id":  uid,
-			"title":      req.Title,
-			"price":      req.Price,
-			"city":       req.City,
-			"category":   req.Category,
+			"bouquet_id":  id,
+			"seller_id":   uid,
+			"title":       req.Title,
+			"price":       req.Price,
+			"city":        req.City,
+			"category":    req.Category,
+			"photos":      len(req.Photos),
+			"description": req.Description,
 		},
-		fmt.Sprintf("🌸 <b>Новое объявление</b>\n%s — %d ₸\n%s · %s",
-			req.Title, req.Price, req.City, req.Category),
+		fmt.Sprintf(
+			"🌸 <b>Новое объявление</b>\n\n"+
+				"<b>%s</b>\n"+
+				"Цена: <b>%s ₸</b>\n"+
+				"Город: %s · %s\n"+
+				"Фото: %d шт%s\n\n"+
+				"Продавец: %s%s",
+			adminbot.EscapeHTML(req.Title),
+			adminbot.FormatPrice(req.Price),
+			adminbot.EscapeHTML(req.City),
+			req.Category,
+			len(req.Photos),
+			descSuffix(descPreview),
+			adminbot.FormatUser(uid, sellerName, sellerUsername),
+			phoneSuffix(sellerPhone),
+		),
 	)
 
 	response.OK(c, gin.H{"id": id})
+}
+
+func descSuffix(d string) string {
+	if d == "" {
+		return ""
+	}
+	return "\n«" + adminbot.EscapeHTML(d) + "»"
+}
+
+func phoneSuffix(p string) string {
+	if p == "" {
+		return ""
+	}
+	return "\n📱 <code>" + p + "</code>"
 }
 
 // isOwnUploadURL — фото должно быть из нашего /upload-эндпоинта:

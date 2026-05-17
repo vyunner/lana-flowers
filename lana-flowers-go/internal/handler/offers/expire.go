@@ -3,7 +3,6 @@ package offers
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"log"
 	"time"
 
@@ -98,15 +97,20 @@ func runExpireSweep(ctx context.Context, db *sql.DB) {
 			Type: events.TypeOfferExpired, OfferID: e.ID,
 			BouquetTitle: e.BouquetTitle, Price: e.Price,
 		})
-		go adminbot.Record(db, adminbot.EventOfferExpired,
-			map[string]any{
-				"offer_id": e.ID,
-				"buyer_id": e.BuyerID,
-				"price":    e.Price,
-				"reason":   "ttl_sweep",
-			},
-			fmt.Sprintf("⏱ <b>Предложение истекло (TTL)</b>\n%s — %d ₸",
-				e.BouquetTitle, e.Price),
-		)
+		// Дёргаем LoadContext чтобы получить имена/usernames обеих сторон —
+		// expired-struct из CTE содержит только buyer_id+title+price.
+		// 5 sweep'ов раз в 5 минут, по N экспайренных = микро-нагрузка.
+		eID := e.ID
+		go func() {
+			ctx, err := LoadContext(db, eID)
+			if err != nil {
+				log.Printf("expire-sweep LoadContext %d: %v", eID, err)
+				return
+			}
+			adminbot.Record(db, adminbot.EventOfferExpired,
+				adminPayload(ctx),
+				adminOfferText("⏱ Предложение истекло (TTL)", ctx, ctx.Price, 0),
+			)
+		}()
 	}
 }

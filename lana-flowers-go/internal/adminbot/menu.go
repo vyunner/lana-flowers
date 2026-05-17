@@ -104,10 +104,10 @@ func statsMenu() *InlineKeyboardMarkup {
 func statsText(s Stats) string {
 	return fmt.Sprintf(
 		"<b>📊 Статистика</b>\n\n"+
-			"Нажали /start: <b>%d</b> (уникальных: <b>%d</b>)\n"+
+			"Нажали /start: <b>%d</b>\n"+
 			"Прошли регистрацию: <b>%d</b>\n"+
 			"Опубликовано объявлений: <b>%d</b>\n"+
 			"Делали предложения: <b>%d</b>",
-		s.StartsTotal, s.StartsUnique, s.Registered, s.BouquetsPosted, s.OfferingBuyers,
+		s.StartsUnique, s.Registered, s.BouquetsPosted, s.OfferingBuyers,
 	)
 }

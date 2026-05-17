@@ -178,24 +178,21 @@ func ListRequests(db *sql.DB) ([]Request, error) {
 // ---- статистика для админ-меню ----
 
 type Stats struct {
-	StartsTotal     int // всего тапов /start (event_log)
-	StartsUnique    int // уникальных tg_id, дотыкавшихся /start
-	Registered      int // users.phone_number <> '' (полный онбординг)
-	BouquetsPosted  int // всего опубликованных букетов
-	OfferingBuyers  int // уникальных tg_id, сделавших ≥1 предложение
+	StartsUnique   int // уникальных tg_id, тапнувших /start хоть раз
+	Registered     int // users.phone_number <> '' (полный онбординг)
+	BouquetsPosted int // всего опубликованных букетов
+	OfferingBuyers int // уникальных tg_id, сделавших ≥1 предложение
 }
 
 // GetStats — четыре простых COUNT'а в одном вызове. Каждый запрос
 // дешёвый (event_log по indexed event_type, users/bouquets/offers
 // маленькие). Не транзакционно — между запросами цифры могут чуть
 // разойтись, для админ-панели это допустимо.
+//
+// «Нажали /start» считается DISTINCT по tg_id — один юзер, многократно
+// открывающий бот, не должен «накручивать» воронку.
 func GetStats(db *sql.DB) (Stats, error) {
 	var s Stats
-	if err := db.QueryRow(
-		`SELECT COUNT(*) FROM event_log WHERE event_type = 'user_started'`,
-	).Scan(&s.StartsTotal); err != nil {
-		return s, err
-	}
 	if err := db.QueryRow(
 		`SELECT COUNT(DISTINCT payload->>'tg_id') FROM event_log WHERE event_type = 'user_started'`,
 	).Scan(&s.StartsUnique); err != nil {

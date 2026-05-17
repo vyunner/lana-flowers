@@ -77,8 +77,20 @@ func Create(c *gin.Context, db *sql.DB) {
 				"price":      ctx.Price,
 				"ask_price":  sellerPrice,
 			},
-			fmt.Sprintf("💌 <b>Новое предложение</b>\n%s — %d ₸ (ask: %d ₸)",
-				ctx.BouquetTitle, ctx.Price, sellerPrice),
+			fmt.Sprintf(
+				"💌 <b>Новое предложение</b>\n\n"+
+					"<b>%s</b>\n"+
+					"Запрос: %s ₸\n"+
+					"Предложение: <b>%s ₸</b>%s\n\n"+
+					"Покупатель: %s\n"+
+					"Продавец: %s",
+				adminbot.EscapeHTML(ctx.BouquetTitle),
+				adminbot.FormatPrice(sellerPrice),
+				adminbot.FormatPrice(ctx.Price),
+				deltaSuffix(sellerPrice, ctx.Price),
+				adminbot.FormatUser(ctx.BuyerID, ctx.BuyerName, ctx.BuyerUsername),
+				adminbot.FormatUser(ctx.SellerID, ctx.SellerName, ctx.SellerUsername),
+			),
 		)
 	}
 
