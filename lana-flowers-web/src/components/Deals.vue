@@ -2,59 +2,160 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { haptic, hapticNotify } from '../telegram'
 import { getAllMyOffers, respondOffer } from '../api/offers'
+import { getMyBouquets, deleteBouquet } from '../api/bouquets'
 import { useApi } from '../composables/useApi'
 import { usePolling } from '../composables/usePolling'
 import { formatPrice, formatRemaining, OFFER_TTL_MS } from '../utils/format'
 import { thumbUrl } from '../utils/image'
 import { confirm, alert } from '../utils/dialog'
-import EmptyState from './EmptyState.vue'
 import CounterPriceModal from './CounterPriceModal.vue'
 import ContactSheet from './ContactSheet.vue'
 import PullToRefreshScroll from './base/PullToRefreshScroll.vue'
 
-const emit = defineEmits(['deals-updated'])
+const emit = defineEmits(['deals-updated', 'switch-tab'])
 
+// ---- API ----
 const deals = useApi(getAllMyOffers)
+const myBouquets = useApi(getMyBouquets)
 
 async function load() {
-  await deals.run()
-  emit('deals-updated', actionableCount.value)
+  await Promise.all([deals.run(), myBouquets.run()])
+  emit('deals-updated', sectionNeedAnswer.value.length)
 }
 
 onMounted(load)
 defineExpose({ refresh: load })
 
-// Polling — safety net на случай если SSE-соединение лопнуло. Основной
-// канал апдейтов теперь SSE (мгновенно через App.vue → handleEvent).
-// 60с достаточно: даже если SSE завис, юзер увидит свежее в течение минуты.
-usePolling(load, 60000)
+// Polling — safety net. Основной канал — SSE через App.vue → handleEvent.
+usePolling(load, 60_000)
 
-// ---- Фильтр ----
-const filter = ref('active') // 'active' | 'history'
+// ---- Группировка по «что мне делать сейчас» ----
+//
+// Принцип: юзер сверху вниз читает экран и сразу понимает срочность.
+// 1. Ответьте  — pending где я seller (мой ход)
+// 2. Свяжитесь — accepted (надо договориться о встрече)
+// 3. Ждёте    — pending где я buyer (мяч на той стороне)
+// 4. На продаже — мои активные букеты БЕЗ офферов (просто витрина)
+//
+// Букет, на который есть активный оффер выше, не дублируется в «На продаже» —
+// он уже представлен своими офферами в верхних секциях.
 
-const items = computed(() => {
-  const list = deals.data.value || []
-  if (filter.value === 'active') {
-    return list.filter((o) => o.status === 'pending' || o.status === 'accepted')
-  }
-  return list.filter((o) => o.status !== 'pending' && o.status !== 'accepted')
+const sectionNeedAnswer = computed(() =>
+  (deals.data.value || []).filter((o) => o.status === 'pending' && o.role === 'seller'),
+)
+const sectionNeedContact = computed(() =>
+  (deals.data.value || []).filter((o) => o.status === 'accepted'),
+)
+const sectionWaiting = computed(() =>
+  (deals.data.value || []).filter((o) => o.status === 'pending' && o.role === 'buyer'),
+)
+const sectionSelling = computed(() => {
+  const busyBouquetIds = new Set(
+    [
+      ...sectionNeedAnswer.value,
+      ...sectionNeedContact.value,
+      ...sectionWaiting.value,
+    ]
+      .map((o) => o.bouquet?.id)
+      .filter(Boolean),
+  )
+  return (myBouquets.data.value || []).filter(
+    (b) => b.status === 'active' && !busyBouquetIds.has(b.id),
+  )
 })
 
-// Сколько офферов ждут МОЕГО ответа (я seller, статус pending) — для бейджа на табе.
-const actionableCount = computed(() => {
-  return (deals.data.value || []).filter(
-    (o) => o.status === 'pending' && o.role === 'seller',
-  ).length
+const sectionHistoryOffers = computed(() =>
+  (deals.data.value || []).filter((o) =>
+    ['rejected', 'cancelled', 'expired', 'countered'].includes(o.status),
+  ),
+)
+const sectionHistoryBouquets = computed(() =>
+  (myBouquets.data.value || []).filter((b) => b.status !== 'active'),
+)
+
+const allEmpty = computed(
+  () =>
+    sectionNeedAnswer.value.length === 0 &&
+    sectionNeedContact.value.length === 0 &&
+    sectionWaiting.value.length === 0 &&
+    sectionSelling.value.length === 0,
+)
+const historyEmpty = computed(
+  () => sectionHistoryOffers.value.length === 0 && sectionHistoryBouquets.value.length === 0,
+)
+const historyOpen = ref(false)
+
+// ---- Таймер истечения pending-офферов ----
+const now = ref(Date.now())
+let nowTimer = null
+onMounted(() => {
+  nowTimer = setInterval(() => {
+    now.value = Date.now()
+  }, 60_000)
+})
+onUnmounted(() => {
+  if (nowTimer) clearInterval(nowTimer)
 })
 
-// ---- Действия ----
+function offerDeadline(o) {
+  if (!o.created_at) return 0
+  const t = new Date(o.created_at).getTime()
+  return Number.isFinite(t) ? t + OFFER_TTL_MS : 0
+}
+function expiresLabel(o) {
+  if (o.status !== 'pending') return ''
+  const d = offerDeadline(o)
+  if (!d) return ''
+  void now.value
+  return formatRemaining(d)
+}
+function expiresUrgency(o) {
+  if (o.status !== 'pending') return ''
+  const d = offerDeadline(o)
+  if (!d) return ''
+  void now.value
+  const diff = d - now.value
+  if (diff <= 0) return 'critical'
+  const hours = diff / 3_600_000
+  if (hours < 2) return 'critical'
+  if (hours < 24) return 'warn'
+  return 'muted'
+}
+
+// ---- Хелперы ----
+function cpName(o) {
+  return o.counterparty?.name || (o.role === 'buyer' ? 'Продавец' : 'Покупатель')
+}
+
+// Разница между запросной ценой букета и предложением покупателя в процентах.
+// Положительное значение = покупатель просит скидку, отрицательное = предложил больше.
+function priceDeltaPct(o) {
+  const ask = o.bouquet?.price
+  if (!ask || ask <= 0) return null
+  const pct = Math.round(((ask - o.price) / ask) * 100)
+  return Math.abs(pct) >= 1 ? pct : null
+}
+
+function historyStatusText(o) {
+  if (o.status === 'rejected') return 'Отклонено'
+  if (o.status === 'cancelled') return 'Сделка отменена'
+  if (o.status === 'expired') return 'Букет ушёл другому'
+  if (o.status === 'countered') return 'Был встречный ответ'
+  return o.status
+}
+function bouquetStatusText(s) {
+  if (s === 'sold') return 'Продано'
+  if (s === 'archived') return 'Снято'
+  return s
+}
+
+// ---- Действия с офферами ----
 const counterModalOpen = ref(false)
 const counterOffer = ref(null)
-
 const contactSheetOpen = ref(false)
 const contactCounterparty = ref(null)
-
-const busyOfferId = ref(null) // блокируем повторные тапы по строке во время запроса
+const busyOfferId = ref(null)
+const busyBouquetId = ref(null)
 
 function openCounter(offer) {
   haptic('light')
@@ -75,7 +176,8 @@ async function confirmCounter({ offerId, price }) {
 
 async function accept(offer) {
   if (busyOfferId.value) return
-  if (!(await confirm(`Принять ${formatPrice(offer.price)} ₸ за «${offer.bouquet.title}»?`))) return
+  if (!(await confirm(`Принять ${formatPrice(offer.price)} ₸ за «${offer.bouquet.title}»?`)))
+    return
   busyOfferId.value = offer.id
   try {
     await respondOffer(offer.id, { action: 'accept' })
@@ -106,7 +208,7 @@ async function reject(offer) {
 async function cancelDeal(offer) {
   if (busyOfferId.value) return
   const ok = await confirm(
-    `Отменить сделку? Букет «${offer.bouquet.title}» вернётся в продажу, ${offer.counterparty.name} получит уведомление.`,
+    `Отменить сделку? Букет «${offer.bouquet.title}» вернётся в продажу, ${cpName(offer)} получит уведомление.`,
   )
   if (!ok) return
   busyOfferId.value = offer.id
@@ -121,11 +223,11 @@ async function cancelDeal(offer) {
   }
 }
 
-// Покупатель забирает свой pending-оффер (передумал). Букет не трогаем,
-// продавец получит уведомление об отзыве — оффер не повисит в его inbox'е.
 async function withdrawOwn(offer) {
   if (busyOfferId.value) return
-  const ok = await confirm(`Отозвать предложение ${formatPrice(offer.price)} ₸ за «${offer.bouquet.title}»?`)
+  const ok = await confirm(
+    `Отозвать предложение ${formatPrice(offer.price)} ₸ за «${offer.bouquet.title}»?`,
+  )
   if (!ok) return
   busyOfferId.value = offer.id
   try {
@@ -145,168 +247,245 @@ function showContact(offer) {
   contactSheetOpen.value = true
 }
 
-// ---- Таймер истечения для pending-офферов ----
-// Бэк auto-expire'ит pending старше OFFER_TTL_MS (см. expire.go). Фронт
-// сам считает оставшееся от created_at и обновляет надпись раз в минуту
-// — это и есть «таймер», без отдельного API.
-const now = ref(Date.now())
-let nowTimer = null
-onMounted(() => {
-  nowTimer = setInterval(() => { now.value = Date.now() }, 60_000)
-})
-onUnmounted(() => {
-  if (nowTimer) clearInterval(nowTimer)
-})
-
-function offerDeadline(o) {
-  if (!o.created_at) return 0
-  const created = new Date(o.created_at).getTime()
-  return Number.isFinite(created) ? created + OFFER_TTL_MS : 0
+// ---- Действия с букетами (мои объявления) ----
+async function removeBouquet(b) {
+  if (busyBouquetId.value) return
+  if (!(await confirm(`Снять «${b.title}» с продажи?`))) return
+  busyBouquetId.value = b.id
+  try {
+    await deleteBouquet(b.id)
+    haptic('medium')
+    await load()
+  } catch (e) {
+    await alert('Ошибка: ' + (e.message || e))
+  } finally {
+    busyBouquetId.value = null
+  }
 }
 
-function expiresLabel(o) {
-  if (o.status !== 'pending') return ''
-  const d = offerDeadline(o)
-  if (!d) return ''
-  // Чтение now.value — для трекинга Vue: при тике перерисовка строки.
-  void now.value
-  return formatRemaining(d)
-}
-
-function expiresUrgency(o) {
-  if (o.status !== 'pending') return ''
-  const d = offerDeadline(o)
-  if (!d) return ''
-  void now.value
-  const diff = d - now.value
-  if (diff <= 0) return 'critical'
-  const hours = diff / 3_600_000
-  if (hours < 2) return 'critical'
-  if (hours < 24) return 'warn'
-  return 'muted'
-}
-
-// ---- Хелперы статусов/ролей ----
-function statusLabel(o) {
-  if (o.status === 'accepted') return 'Принято'
-  if (o.status === 'rejected') return 'Отклонено'
-  if (o.status === 'countered') return 'Был встречный ответ'
-  if (o.status === 'cancelled') return 'Сделка отменена'
-  if (o.status === 'expired') return 'Букет ушёл другому'
-  // pending
-  return o.role === 'seller' ? 'Ждёт вашего ответа' : 'Ожидание ответа'
-}
-
-function statusClass(o) {
-  if (o.status === 'accepted') return 'ok'
-  if (o.status === 'rejected') return 'err'
-  if (o.status === 'cancelled' || o.status === 'expired') return 'err'
-  if (o.status === 'countered') return 'mute'
-  return o.role === 'seller' ? 'warn' : 'mute'
-}
-
-function roleLabel(o) {
-  return o.role === 'buyer' ? 'Вы предложили' : 'Покупатель предложил'
+// ---- Empty-state CTA ----
+function goCatalog() {
+  haptic('light')
+  emit('switch-tab', 'catalog')
 }
 </script>
 
 <template>
   <PullToRefreshScroll :loader="load">
     <div class="deals-inner">
-      <div class="filter">
-        <button
-          type="button"
-          class="chip"
-          :class="{ active: filter === 'active' }"
-          @click="haptic('light'); filter = 'active'"
-        >
-          Активные
-        </button>
-        <button
-          type="button"
-          class="chip"
-          :class="{ active: filter === 'history' }"
-          @click="haptic('light'); filter = 'history'"
-        >
-          История
-        </button>
+      <!-- Empty state: всё спокойно, идти в каталог -->
+      <div
+        v-if="!deals.loading.value && !myBouquets.loading.value && allEmpty"
+        class="empty-state"
+      >
+        <p class="empty-title">Сейчас всё спокойно</p>
+        <p class="empty-sub">Загляните в каталог — там новые букеты</p>
+        <button class="empty-cta" type="button" @click="goCatalog">Открыть каталог →</button>
       </div>
 
-      <div v-if="deals.loading.value && !deals.data.value" class="status">Загружаю…</div>
+      <!-- Loading -->
+      <div v-else-if="deals.loading.value && !deals.data.value" class="status">Загружаю…</div>
 
-      <EmptyState
-        v-else-if="items.length === 0"
-        :text="filter === 'active' ? 'Активных сделок нет' : 'История пуста'"
-      />
-
-      <ul v-else class="list">
-        <li v-for="o in items" :key="o.id" class="row">
-          <div
-            class="thumb"
-            :style="{ backgroundImage: `url(${thumbUrl(o.bouquet.photo || '')})` }"
-          ></div>
-
-          <div class="body">
-            <div class="title">{{ o.bouquet.title }}</div>
-            <div class="sub">
-              {{ roleLabel(o) }} <strong>{{ formatPrice(o.price) }} ₸</strong>
-            </div>
-            <div class="meta">
-              <span :class="['st', statusClass(o)]">{{ statusLabel(o) }}</span>
-              <span class="sep">·</span>
-              <span class="cp">{{ o.counterparty.name }}</span>
-            </div>
-
-            <div
-              v-if="o.status === 'pending'"
-              :class="['expires', expiresUrgency(o)]"
-            >
-              {{ expiresLabel(o) }}
-            </div>
-
-            <!-- Действия -->
-            <div v-if="o.status === 'pending' && o.role === 'seller'" class="actions">
+      <template v-else>
+        <!-- 1. ОТВЕТЬТЕ — pending, я seller -->
+        <section v-if="sectionNeedAnswer.length" class="section">
+          <h3 class="sec-title urgent">Ответьте · {{ sectionNeedAnswer.length }}</h3>
+          <div class="cards">
+            <article v-for="o in sectionNeedAnswer" :key="o.id" class="card">
+              <div class="card-row">
+                <div
+                  class="photo"
+                  :style="{ backgroundImage: `url(${thumbUrl(o.bouquet.photo || '')})` }"
+                ></div>
+                <div class="card-info">
+                  <div class="card-title">{{ o.bouquet.title }}</div>
+                  <div class="card-sub">От {{ cpName(o) }}</div>
+                  <div class="card-prices">
+                    Предложение: <b>{{ formatPrice(o.price) }} ₸</b>
+                    <span
+                      v-if="priceDeltaPct(o) != null"
+                      :class="['delta', priceDeltaPct(o) > 0 ? 'down' : 'up']"
+                    >
+                      ({{ priceDeltaPct(o) > 0 ? '−' : '+'
+                      }}{{ Math.abs(priceDeltaPct(o)) }}%)
+                    </span>
+                  </div>
+                  <div class="card-prices muted">
+                    Ваша цена: {{ formatPrice(o.bouquet.price) }} ₸
+                  </div>
+                  <div :class="['expires', expiresUrgency(o)]">{{ expiresLabel(o) }}</div>
+                </div>
+              </div>
               <button
-                class="act primary"
+                class="cta primary"
                 :disabled="busyOfferId === o.id"
                 @click="accept(o)"
               >
-                Принять
+                Согласиться на {{ formatPrice(o.price) }} ₸
               </button>
-              <button class="act" @click="openCounter(o)">Встречно</button>
-              <button
-                class="act danger"
-                :disabled="busyOfferId === o.id"
-                @click="reject(o)"
-              >
-                Отклонить
-              </button>
-            </div>
-            <div v-else-if="o.status === 'pending' && o.role === 'buyer'" class="actions">
-              <button
-                class="act danger ghost"
-                :disabled="busyOfferId === o.id"
-                @click="withdrawOwn(o)"
-              >
-                Отозвать предложение
-              </button>
-            </div>
-            <div v-else-if="o.status === 'accepted'" class="actions">
-              <button class="act primary" @click="showContact(o)">
+              <div class="links">
+                <button class="link" type="button" @click="openCounter(o)">
+                  Предложить свою цену
+                </button>
+                <span class="dot">·</span>
+                <button
+                  class="link danger"
+                  type="button"
+                  :disabled="busyOfferId === o.id"
+                  @click="reject(o)"
+                >
+                  Отклонить
+                </button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- 2. СВЯЖИТЕСЬ — accepted -->
+        <section v-if="sectionNeedContact.length" class="section">
+          <h3 class="sec-title">Свяжитесь · {{ sectionNeedContact.length }}</h3>
+          <div class="cards">
+            <article v-for="o in sectionNeedContact" :key="o.id" class="card">
+              <div class="card-row">
+                <div
+                  class="photo"
+                  :style="{ backgroundImage: `url(${thumbUrl(o.bouquet.photo || '')})` }"
+                ></div>
+                <div class="card-info">
+                  <div class="card-title">{{ o.bouquet.title }}</div>
+                  <div class="card-sub">
+                    Договорились с {{ cpName(o) }} —
+                    <b>{{ formatPrice(o.price) }} ₸</b>
+                  </div>
+                </div>
+              </div>
+              <button class="cta primary" type="button" @click="showContact(o)">
                 Связаться с {{ o.role === 'buyer' ? 'продавцом' : 'покупателем' }}
               </button>
-              <button
-                class="act danger ghost"
-                :disabled="busyOfferId === o.id"
-                @click="cancelDeal(o)"
-                title="Если сделка сорвалась — букет вернётся в продажу"
-              >
-                Не состоялась
-              </button>
-            </div>
+              <div class="links">
+                <button
+                  class="link danger"
+                  type="button"
+                  :disabled="busyOfferId === o.id"
+                  @click="cancelDeal(o)"
+                >
+                  Отменить сделку
+                </button>
+              </div>
+            </article>
           </div>
-        </li>
-      </ul>
+        </section>
+
+        <!-- 3. ЖДЁТЕ ОТВЕТА — pending, я buyer -->
+        <section v-if="sectionWaiting.length" class="section">
+          <h3 class="sec-title">Ждёте ответа · {{ sectionWaiting.length }}</h3>
+          <div class="cards">
+            <article v-for="o in sectionWaiting" :key="o.id" class="card">
+              <div class="card-row">
+                <div
+                  class="photo"
+                  :style="{ backgroundImage: `url(${thumbUrl(o.bouquet.photo || '')})` }"
+                ></div>
+                <div class="card-info">
+                  <div class="card-title">{{ o.bouquet.title }}</div>
+                  <div class="card-sub">
+                    Вы предложили <b>{{ formatPrice(o.price) }} ₸</b>
+                  </div>
+                  <div class="hint">{{ cpName(o) }} ещё думает</div>
+                  <div :class="['expires', expiresUrgency(o)]">{{ expiresLabel(o) }}</div>
+                </div>
+              </div>
+              <div class="links">
+                <button
+                  class="link"
+                  type="button"
+                  :disabled="busyOfferId === o.id"
+                  @click="withdrawOwn(o)"
+                >
+                  Отозвать предложение
+                </button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- 4. НА ПРОДАЖЕ — мои активные без офферов -->
+        <section v-if="sectionSelling.length" class="section">
+          <h3 class="sec-title">На продаже · {{ sectionSelling.length }}</h3>
+          <ul class="compact-list">
+            <li v-for="b in sectionSelling" :key="b.id" class="compact-row">
+              <div
+                class="compact-thumb"
+                :style="{ backgroundImage: `url(${thumbUrl(b.photos?.[0] || '')})` }"
+              ></div>
+              <div class="compact-body">
+                <div class="compact-title">{{ b.title }}</div>
+                <div class="compact-sub">{{ formatPrice(b.price) }} ₸</div>
+              </div>
+              <button
+                class="link danger compact-action"
+                type="button"
+                :disabled="busyBouquetId === b.id"
+                @click="removeBouquet(b)"
+              >
+                Снять
+              </button>
+            </li>
+          </ul>
+        </section>
+
+        <!-- История toggle -->
+        <div v-if="!historyEmpty" class="history-toggle">
+          <button class="link muted" type="button" @click="historyOpen = !historyOpen">
+            {{ historyOpen ? 'Скрыть историю' : 'Показать историю →' }}
+          </button>
+        </div>
+
+        <template v-if="historyOpen">
+          <section v-if="sectionHistoryOffers.length" class="section">
+            <h3 class="sec-title muted">Завершённые сделки</h3>
+            <ul class="compact-list">
+              <li
+                v-for="o in sectionHistoryOffers"
+                :key="o.id"
+                class="compact-row history-row"
+              >
+                <div
+                  class="compact-thumb"
+                  :style="{ backgroundImage: `url(${thumbUrl(o.bouquet.photo || '')})` }"
+                ></div>
+                <div class="compact-body">
+                  <div class="compact-title">{{ o.bouquet.title }}</div>
+                  <div class="compact-sub">
+                    {{ historyStatusText(o) }} · {{ formatPrice(o.price) }} ₸
+                  </div>
+                </div>
+              </li>
+            </ul>
+          </section>
+          <section v-if="sectionHistoryBouquets.length" class="section">
+            <h3 class="sec-title muted">Проданные и снятые букеты</h3>
+            <ul class="compact-list">
+              <li
+                v-for="b in sectionHistoryBouquets"
+                :key="b.id"
+                class="compact-row history-row"
+              >
+                <div
+                  class="compact-thumb"
+                  :style="{ backgroundImage: `url(${thumbUrl(b.photos?.[0] || '')})` }"
+                ></div>
+                <div class="compact-body">
+                  <div class="compact-title">{{ b.title }}</div>
+                  <div class="compact-sub">
+                    {{ formatPrice(b.price) }} ₸ · {{ bouquetStatusText(b.status) }}
+                  </div>
+                </div>
+              </li>
+            </ul>
+          </section>
+        </template>
+      </template>
     </div>
 
     <CounterPriceModal
@@ -329,100 +508,149 @@ function roleLabel(o) {
   padding: 8px 16px calc(120px + env(safe-area-inset-bottom, 0px));
 }
 
-.filter {
-  display: flex;
-  gap: 6px;
-  padding: 4px 0 14px;
-}
-.chip {
-  flex-shrink: 0;
-  font-size: 12.5px;
-  padding: 7px 14px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--secondary-border);
-  color: var(--secondary-text);
-  font-weight: 500;
-  background: transparent;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-.chip.active {
-  background: var(--primary);
-  color: var(--primary-text);
-  border-color: var(--primary);
-}
-
-.status, .empty {
+.status {
   color: var(--text-muted);
   font-size: 14px;
   padding: 32px 0;
   text-align: center;
 }
 
-.list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+/* ---- Empty state ---- */
+.empty-state {
+  padding: 60px 24px;
+  text-align: center;
+}
+.empty-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 6px;
+  color: var(--text);
+}
+.empty-sub {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 18px;
+}
+.empty-cta {
+  background: var(--primary);
+  color: var(--primary-text);
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 11px 22px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* ---- Секции ---- */
+.section {
+  margin: 0 0 20px;
+}
+.sec-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin: 0 4px 8px;
+}
+.sec-title.urgent {
+  color: var(--accent);
+}
+.sec-title.muted {
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 14px;
+}
+
+/* ---- Карточка оффера ---- */
+.cards {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-.row {
-  display: flex;
-  gap: 12px;
+.card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
-.thumb {
-  width: 64px;
-  height: 64px;
-  border-radius: 10px;
+.card-row {
+  display: flex;
+  gap: 14px;
+}
+.photo {
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
   background: var(--surface-2);
   background-size: cover;
   background-position: center;
   flex-shrink: 0;
 }
-.body {
+.card-info {
   flex: 1;
   min-width: 0;
 }
-.title {
-  font-size: 15px;
-  font-weight: 600;
+.card-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  letter-spacing: -0.005em;
 }
-.sub {
+.card-sub {
   font-size: 13px;
   color: var(--text-secondary);
   margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.sub strong { color: var(--text); font-weight: 600; }
-.meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
+.card-prices {
+  font-size: 14px;
+  margin-top: 6px;
+  color: var(--text);
+}
+.card-prices.muted {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+.card-prices b {
+  font-weight: 700;
+}
+.delta {
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 4px;
+}
+.delta.down {
+  color: #d6553f;
+}
+.delta.up {
+  color: #2c8a52;
+}
+.hint {
+  font-size: 13px;
   color: var(--text-muted);
   margin-top: 4px;
+  font-style: italic;
 }
-.sep { opacity: 0.6; }
-.cp { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.st { font-weight: 600; }
-.st.ok { color: #2c8a52; }
-.st.err { color: #d6553f; }
-.st.warn { color: var(--accent); }
-.st.mute { color: var(--text-muted); }
 
-/* Таймер истечения pending-оффера. Цвет = срочность:
-   muted (>24ч) → warn бордо (<24ч) → critical красный (<2ч / истёк). */
+/* Таймер истечения pending-оффера. Цвет = срочность. */
 .expires {
   font-size: 12px;
-  margin-top: 4px;
+  margin-top: 6px;
   color: var(--text-muted);
+}
+.expires:empty {
+  display: none;
 }
 .expires.warn {
   color: var(--accent);
@@ -433,45 +661,119 @@ function roleLabel(o) {
   font-weight: 700;
 }
 
-.actions {
-  display: flex;
-  gap: 6px;
-  margin-top: 10px;
-  flex-wrap: wrap;
-}
-.act {
-  flex: 1;
-  min-width: 0;
-  padding: 9px 10px;
-  border-radius: 8px;
-  background: var(--surface-2);
-  color: var(--text);
+/* ---- CTA primary внутри карточки ---- */
+.cta {
+  width: 100%;
+  padding: 13px;
+  border-radius: 10px;
   border: 0;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   transition: background 0.15s, transform 0.1s;
 }
-.act:active:not(:disabled) { transform: scale(0.97); background: var(--border); }
-.act:disabled { opacity: 0.5; }
-.act.primary {
+.cta:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.cta:disabled {
+  opacity: 0.5;
+}
+.cta.primary {
   background: var(--accent);
   color: var(--accent-text);
 }
-.act.primary:active:not(:disabled) { background: var(--accent-hover); }
-.act.danger {
+.cta.primary:active:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+/* ---- Text-link'и под CTA ---- */
+.links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.link {
+  background: transparent;
+  border: 0;
+  padding: 6px 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.link:active:not(:disabled) {
+  color: var(--text);
+}
+.link:disabled {
+  opacity: 0.5;
+}
+.link.danger {
   color: #d6553f;
 }
-/* Ghost = «менее заметная» — для деструктивных-но-не-страшных действий
-   типа «отменить сделку». Без фона, тонкая обводка. */
-.act.danger.ghost {
-  background: transparent;
-  border: 1px solid var(--border);
+.link.muted {
   color: var(--text-muted);
   font-weight: 500;
 }
-.act.danger.ghost:active:not(:disabled) {
+.dot {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ---- Компактный список (мои букеты, история) ---- */
+.compact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.compact-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.compact-row.history-row {
+  border-color: transparent;
   background: var(--surface-2);
-  color: #d6553f;
-  border-color: #d6553f;
+}
+.compact-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+}
+.compact-body {
+  flex: 1;
+  min-width: 0;
+}
+.compact-title {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.compact-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.compact-action {
+  flex-shrink: 0;
+}
+
+/* ---- История toggle ---- */
+.history-toggle {
+  text-align: center;
+  padding: 8px 0 16px;
 }
 </style>

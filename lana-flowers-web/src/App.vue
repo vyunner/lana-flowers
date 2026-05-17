@@ -79,7 +79,8 @@ function onPublished() {
   hapticNotify('success')
   sellOpen.value = false
   gridRef.value?.refresh?.()
-  profileRef.value?.refresh?.()
+  // Букеты теперь живут во вкладке Сделки (секция «На продаже»), не в Профиле.
+  dealsRef.value?.refresh?.()
 }
 
 // ---- Bouquet detail ----
@@ -231,6 +232,7 @@ useEventStream(handleEvent, () => {
         v-show="activeTab === 'deals'"
         ref="dealsRef"
         @deals-updated="onDealsUpdated"
+        @switch-tab="selectTab"
       />
 
       <Profile v-show="activeTab === 'profile'" ref="profileRef" />
