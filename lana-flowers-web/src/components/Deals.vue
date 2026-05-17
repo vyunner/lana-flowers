@@ -340,42 +340,7 @@ function goCatalog() {
           </div>
         </section>
 
-        <!-- 2. СВЯЖИТЕСЬ — accepted -->
-        <section v-if="sectionNeedContact.length" class="section">
-          <h3 class="sec-title">Свяжитесь · {{ sectionNeedContact.length }}</h3>
-          <div class="cards">
-            <article v-for="o in sectionNeedContact" :key="o.id" class="card">
-              <div class="card-row">
-                <div
-                  class="photo"
-                  :style="{ backgroundImage: `url(${thumbUrl(o.bouquet.photo || '')})` }"
-                ></div>
-                <div class="card-info">
-                  <div class="card-title">{{ o.bouquet.title }}</div>
-                  <div class="card-meta">
-                    Договорились с {{ cpName(o) }} —
-                    <b>{{ formatPrice(o.price) }} ₸</b>
-                  </div>
-                </div>
-              </div>
-              <div class="actions">
-                <button class="btn success" type="button" @click="showContact(o)">
-                  Связаться с {{ o.role === 'buyer' ? 'продавцом' : 'покупателем' }}
-                </button>
-                <button
-                  class="btn secondary danger"
-                  type="button"
-                  :disabled="busyOfferId === o.id"
-                  @click="cancelDeal(o)"
-                >
-                  Отменить сделку
-                </button>
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <!-- 3. ЖДЁТЕ ОТВЕТА — pending, я buyer -->
+        <!-- 2. ЖДЁТЕ ОТВЕТА — pending, я buyer (тоже с таймером — выше «Свяжитесь») -->
         <section v-if="sectionWaiting.length" class="section">
           <h3 class="sec-title">Ждёте ответа · {{ sectionWaiting.length }}</h3>
           <div class="cards">
@@ -405,6 +370,41 @@ function goCatalog() {
                   @click="withdrawOwn(o)"
                 >
                   Отозвать предложение
+                </button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- 3. СВЯЖИТЕСЬ — accepted (без таймера, поэтому ниже timer-секций) -->
+        <section v-if="sectionNeedContact.length" class="section">
+          <h3 class="sec-title">Свяжитесь · {{ sectionNeedContact.length }}</h3>
+          <div class="cards">
+            <article v-for="o in sectionNeedContact" :key="o.id" class="card">
+              <div class="card-row">
+                <div
+                  class="photo"
+                  :style="{ backgroundImage: `url(${thumbUrl(o.bouquet.photo || '')})` }"
+                ></div>
+                <div class="card-info">
+                  <div class="card-title">{{ o.bouquet.title }}</div>
+                  <div class="card-meta">
+                    Договорились с {{ cpName(o) }} —
+                    <b>{{ formatPrice(o.price) }} ₸</b>
+                  </div>
+                </div>
+              </div>
+              <div class="actions">
+                <button class="btn success" type="button" @click="showContact(o)">
+                  Связаться с {{ o.role === 'buyer' ? 'продавцом' : 'покупателем' }}
+                </button>
+                <button
+                  class="btn secondary danger"
+                  type="button"
+                  :disabled="busyOfferId === o.id"
+                  @click="cancelDeal(o)"
+                >
+                  Отменить сделку
                 </button>
               </div>
             </article>
