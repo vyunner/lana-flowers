@@ -33,8 +33,26 @@ type privateView struct {
 	PhoneNumber         string `json:"phone_number"`
 	DisplayName         string `json:"display_name"`
 	AvatarURL           string `json:"avatar_url"`
+	City                string `json:"city"`
 	OnboardingCompleted bool   `json:"onboarding_completed"`
 	IsRegistered        bool   `json:"is_registered"`
+}
+
+// allowedCities — те же города что во фронте (lana-flowers-web/src/data/cities.js).
+// Whitelist чтобы юзер не смог через PATCH /users/me записать в city произвольную
+// строку (мусор, XSS-payload, ёмкие emoji-комбинации).
+// При расширении списка городов — синхронизировать оба места.
+var allowedCities = map[string]bool{
+	"Алматы":           true,
+	"Астана":           true,
+	"Шымкент":          true,
+	"Караганда":        true,
+	"Актобе":           true,
+	"Атырау":           true,
+	"Тараз":            true,
+	"Павлодар":         true,
+	"Усть-Каменогорск": true,
+	"Семей":            true,
 }
 
 // publicView — то, что любой видит про чужого юзера (GET /users/:id).
@@ -82,10 +100,10 @@ func loadPrivateAndReturn(c *gin.Context, db *sql.DB, userID string) {
 	var u privateView
 	err := db.QueryRow(`
 		SELECT user_id, first_name, last_name, username, photo_url, is_premium, language_code,
-		       phone_number, display_name, avatar_url, onboarding_completed
+		       phone_number, display_name, avatar_url, city, onboarding_completed
 		FROM users WHERE user_id = $1
 	`, userID).Scan(&u.UserID, &u.FirstName, &u.LastName, &u.Username, &u.PhotoURL, &u.IsPremium, &u.LanguageCode,
-		&u.PhoneNumber, &u.DisplayName, &u.AvatarURL, &u.OnboardingCompleted)
+		&u.PhoneNumber, &u.DisplayName, &u.AvatarURL, &u.City, &u.OnboardingCompleted)
 	if err == sql.ErrNoRows {
 		response.Err(c, http.StatusNotFound, "NOT_FOUND", "user not found")
 		return
@@ -101,11 +119,12 @@ func loadPrivateAndReturn(c *gin.Context, db *sql.DB, userID string) {
 type patchMeReq struct {
 	DisplayName         *string `json:"display_name,omitempty"`
 	AvatarURL           *string `json:"avatar_url,omitempty"`
+	City                *string `json:"city,omitempty"`
 	OnboardingCompleted *bool   `json:"onboarding_completed,omitempty"`
 }
 
 // UpdateMe — частичное обновление. Принимаем только то, что юзер вправе менять про себя.
-//   PATCH /users/me   { display_name?, avatar_url?, onboarding_completed? }
+//   PATCH /users/me   { display_name?, avatar_url?, city?, onboarding_completed? }
 func UpdateMe(c *gin.Context, db *sql.DB) {
 	uidVal, ok := c.Get("user_id")
 	if !ok {
@@ -152,6 +171,19 @@ func UpdateMe(c *gin.Context, db *sql.DB) {
 		}
 		sets = append(sets, "avatar_url = $"+strconv.Itoa(idx))
 		args = append(args, av)
+		idx++
+	}
+	if req.City != nil {
+		city := strings.TrimSpace(*req.City)
+		// Whitelist — иначе можно записать произвольную строку или мусор,
+		// который потом сломает фильтрацию каталога / отображение.
+		if city != "" && !allowedCities[city] {
+			response.Err(c, http.StatusBadRequest, "BAD_REQUEST",
+				"unknown city: "+city)
+			return
+		}
+		sets = append(sets, "city = $"+strconv.Itoa(idx))
+		args = append(args, city)
 		idx++
 	}
 	if req.OnboardingCompleted != nil {

@@ -17,6 +17,7 @@ import BouquetDetail from './components/BouquetDetail.vue'
 import OnboardingPhone from './components/OnboardingPhone.vue'
 import OnboardingName from './components/OnboardingName.vue'
 import OnboardingAvatar from './components/OnboardingAvatar.vue'
+import OnboardingCity from './components/OnboardingCity.vue'
 import Toast from './components/base/Toast.vue'
 import { useEventStream } from './composables/useEventStream'
 import { useToastDispatch } from './composables/useToastDispatch'
@@ -26,6 +27,10 @@ onMounted(async () => {
   try {
     const u = await getMe()
     setMe(u)
+    // Если у юзера задан город — каталог сразу открывается в нём
+    // (а не в дефолтной Алматы). selectedCity создан раньше с дефолтом
+    // на случай если getMe ещё не успел.
+    if (u?.city) selectedCity.value = u.city
   } catch {
     // /users/me не должен фейлиться при валидном initData
   } finally {
@@ -175,6 +180,7 @@ useEventStream(handleEvent, refreshOpenTabs)
   <OnboardingPhone v-else-if="currentStep === 'phone'" />
   <OnboardingName v-else-if="currentStep === 'name'" />
   <OnboardingAvatar v-else-if="currentStep === 'avatar'" />
+  <OnboardingCity v-else-if="currentStep === 'city'" />
 
   <!-- 3) Главный экран -->
   <div v-else class="screen">

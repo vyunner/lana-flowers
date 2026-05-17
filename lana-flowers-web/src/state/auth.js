@@ -13,13 +13,18 @@ export function setMe(u) {
 }
 
 // Текущий шаг онбординга / основного экрана.
-// Порядок: name → avatar → phone → app. Телефон — финальный шаг.
+// Порядок: name → avatar → city → phone → app.
+// Город идёт ПЕРЕД phone: все «in-app»-шаги онбординга (имя/аватар/город)
+// проходим в мини-аппе, потом единственный шаг с переключением в TG-бот
+// для шары номера. Город до телефона нужен чтобы каталог сразу открылся
+// в правильном городе после онбординга, а не на дефолтной Алматы.
 export const currentStep = computed(() => {
   if (!me.value) {
     return needsRegistration.value ? 'phone' : 'loading'
   }
   if (!me.value.display_name) return 'name'
   if (!me.value.onboarding_completed) return 'avatar'
+  if (!me.value.city) return 'city'
   if (!me.value.is_registered) return 'phone'
   return 'app'
 })
