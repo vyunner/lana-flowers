@@ -1,10 +1,10 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { haptic, hapticNotify } from '../telegram'
 import { getAllMyOffers, respondOffer } from '../api/offers'
 import { useApi } from '../composables/useApi'
 import { usePolling } from '../composables/usePolling'
-import { formatPrice } from '../utils/format'
+import { formatPrice, formatRemaining, OFFER_TTL_MS } from '../utils/format'
 import { thumbUrl } from '../utils/image'
 import { confirm, alert } from '../utils/dialog'
 import EmptyState from './EmptyState.vue'
@@ -145,6 +145,47 @@ function showContact(offer) {
   contactSheetOpen.value = true
 }
 
+// ---- Таймер истечения для pending-офферов ----
+// Бэк auto-expire'ит pending старше OFFER_TTL_MS (см. expire.go). Фронт
+// сам считает оставшееся от created_at и обновляет надпись раз в минуту
+// — это и есть «таймер», без отдельного API.
+const now = ref(Date.now())
+let nowTimer = null
+onMounted(() => {
+  nowTimer = setInterval(() => { now.value = Date.now() }, 60_000)
+})
+onUnmounted(() => {
+  if (nowTimer) clearInterval(nowTimer)
+})
+
+function offerDeadline(o) {
+  if (!o.created_at) return 0
+  const created = new Date(o.created_at).getTime()
+  return Number.isFinite(created) ? created + OFFER_TTL_MS : 0
+}
+
+function expiresLabel(o) {
+  if (o.status !== 'pending') return ''
+  const d = offerDeadline(o)
+  if (!d) return ''
+  // Чтение now.value — для трекинга Vue: при тике перерисовка строки.
+  void now.value
+  return formatRemaining(d)
+}
+
+function expiresUrgency(o) {
+  if (o.status !== 'pending') return ''
+  const d = offerDeadline(o)
+  if (!d) return ''
+  void now.value
+  const diff = d - now.value
+  if (diff <= 0) return 'critical'
+  const hours = diff / 3_600_000
+  if (hours < 2) return 'critical'
+  if (hours < 24) return 'warn'
+  return 'muted'
+}
+
 // ---- Хелперы статусов/ролей ----
 function statusLabel(o) {
   if (o.status === 'accepted') return 'Принято'
@@ -214,6 +255,13 @@ function roleLabel(o) {
               <span :class="['st', statusClass(o)]">{{ statusLabel(o) }}</span>
               <span class="sep">·</span>
               <span class="cp">{{ o.counterparty.name }}</span>
+            </div>
+
+            <div
+              v-if="o.status === 'pending'"
+              :class="['expires', expiresUrgency(o)]"
+            >
+              {{ expiresLabel(o) }}
             </div>
 
             <!-- Действия -->
@@ -368,6 +416,22 @@ function roleLabel(o) {
 .st.err { color: #d6553f; }
 .st.warn { color: var(--accent); }
 .st.mute { color: var(--text-muted); }
+
+/* Таймер истечения pending-оффера. Цвет = срочность:
+   muted (>24ч) → warn бордо (<24ч) → critical красный (<2ч / истёк). */
+.expires {
+  font-size: 12px;
+  margin-top: 4px;
+  color: var(--text-muted);
+}
+.expires.warn {
+  color: var(--accent);
+  font-weight: 600;
+}
+.expires.critical {
+  color: #d6553f;
+  font-weight: 700;
+}
 
 .actions {
   display: flex;
