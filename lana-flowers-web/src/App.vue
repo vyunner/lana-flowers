@@ -159,24 +159,29 @@ function handleEvent(e) {
   // Цвет тоста (kind → background) уже несёт статус-сигнал:
   // зелёный=success, красный=err, бордо=warn, чёрный=info. Эмодзи в тексте
   // дублируют это семантически — убраны.
+  //
+  // Формат: «<действие> · <цена>\n<название>».
+  // Первая строка короткая и предсказуемая, вторая — название букета,
+  // которое может быть длинным; на узком экране оно перенесётся уже само
+  // не ломая первую строку (см. white-space: pre-line в Toast.vue).
   switch (e.type) {
     case 'offer.created':
-      pushToast(`Новое предложение ${priceStr} за ${title}`, { kind: 'info', action: toDeals })
+      pushToast(`Новое предложение · ${priceStr}\n${title}`, { kind: 'info', action: toDeals })
       break
     case 'offer.accepted':
-      pushToast(`Принято ${priceStr} за ${title}`, { kind: 'success', ttl: 6000, action: toDeals })
+      pushToast(`Принято · ${priceStr}\n${title}`, { kind: 'success', ttl: 6000, action: toDeals })
       break
     case 'offer.rejected':
-      pushToast(`Отклонено: ${title}`, { kind: 'err', action: toDeals })
+      pushToast(`Отклонено · ${priceStr}\n${title}`, { kind: 'err', action: toDeals })
       break
     case 'offer.countered':
-      pushToast(`Встречное ${priceStr} за ${title}`, { kind: 'warn', action: toDeals })
+      pushToast(`Встречное · ${priceStr}\n${title}`, { kind: 'warn', action: toDeals })
       break
     case 'offer.cancelled':
-      pushToast(`Сделка отменена: ${title}`, { kind: 'warn', action: toDeals })
+      pushToast(`Сделка отменена · ${priceStr}\n${title}`, { kind: 'warn', action: toDeals })
       break
     case 'offer.expired':
-      pushToast(`Букет ${title} ушёл другому. Ваше предложение ${priceStr} отменено`, { kind: 'err', action: toDeals })
+      pushToast(`Букет ушёл другому · ${priceStr}\n${title}`, { kind: 'err', action: toDeals })
       break
     default:
       return // unknown event — ignore

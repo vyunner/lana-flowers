@@ -84,10 +84,14 @@ function onTap(t) {
 .toast .msg {
   /* flex:1 + min-width:0 — критично: без min-width:0 flex-item не
      уменьшается ниже intrinsic ширины текста, и длинный текст пушит
-     чевронку за край тоста. С min-width:0 текст переносится корректно. */
+     чевронку за край тоста. С min-width:0 текст переносится корректно.
+     white-space: pre-line — сохраняем \n из text как разрыв строки:
+     первая строка «действие · цена» фиксированная, вторая строка
+     (название букета) может быть длинной и перенесётся уже сама. */
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
+  white-space: pre-line;
 }
 .toast .chev {
   font-size: 20px;

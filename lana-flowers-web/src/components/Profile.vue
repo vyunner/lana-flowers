@@ -41,30 +41,29 @@ defineExpose({ refresh: noop })
 // handleEvent. Тестовое API /admin/preview-event не используется (SSE
 // между прод-эндпоинтом и юзером оказался флакки на проверке).
 // УДАЛИТЬ когда отладим визуал.
-const TEST_TITLE = '«Пионы 50 шт»'
+// Длинный заголовок — нарочно, чтобы проверить как переносится вторая
+// строка на узком экране.
+const TEST_TITLE = '«Очень большой и красивый букет пионов из 101 цветка»'
 function testToast(type) {
   haptic('light')
   switch (type) {
     case 'created':
-      pushToast(`Новое предложение 27 000 ₸ за ${TEST_TITLE}`, { kind: 'info' })
+      pushToast(`Новое предложение · 27 000 ₸\n${TEST_TITLE}`, { kind: 'info' })
       break
     case 'accepted':
-      pushToast(`Принято 27 000 ₸ за ${TEST_TITLE}`, { kind: 'success', ttl: 6000 })
+      pushToast(`Принято · 27 000 ₸\n${TEST_TITLE}`, { kind: 'success', ttl: 6000 })
       break
     case 'rejected':
-      pushToast(`Отклонено: ${TEST_TITLE}`, { kind: 'err' })
+      pushToast(`Отклонено · 9 500 ₸\n${TEST_TITLE}`, { kind: 'err' })
       break
     case 'countered':
-      pushToast(`Встречное 28 500 ₸ за ${TEST_TITLE}`, { kind: 'warn' })
+      pushToast(`Встречное · 28 500 ₸\n${TEST_TITLE}`, { kind: 'warn' })
       break
     case 'cancelled':
-      pushToast(`Сделка отменена: ${TEST_TITLE}`, { kind: 'warn' })
+      pushToast(`Сделка отменена · 27 000 ₸\n${TEST_TITLE}`, { kind: 'warn' })
       break
     case 'expired':
-      pushToast(
-        `Букет ${TEST_TITLE} ушёл другому. Ваше предложение 9 500 ₸ отменено`,
-        { kind: 'err' },
-      )
+      pushToast(`Букет ушёл другому · 9 500 ₸\n${TEST_TITLE}`, { kind: 'err' })
       break
   }
 }
