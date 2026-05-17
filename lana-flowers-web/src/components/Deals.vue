@@ -359,7 +359,7 @@ function goCatalog() {
                 </div>
               </div>
               <div class="actions">
-                <button class="btn primary" type="button" @click="showContact(o)">
+                <button class="btn success" type="button" @click="showContact(o)">
                   Связаться с {{ o.role === 'buyer' ? 'продавцом' : 'покупателем' }}
                 </button>
                 <button
@@ -697,6 +697,16 @@ function goCatalog() {
 }
 .btn.primary:active:not(:disabled) {
   background: var(--accent-hover);
+}
+/* success — для positive-CTA: «Связаться» на уже состоявшейся сделке.
+   Бордовый акцент = «нужно решить», зелёный = «всё ок, давай мутить». */
+.btn.success {
+  background: #2c8a52;
+  color: #fff;
+  font-weight: 700;
+}
+.btn.success:active:not(:disabled) {
+  background: #226c40;
 }
 .btn.secondary {
   background: var(--surface-2);
