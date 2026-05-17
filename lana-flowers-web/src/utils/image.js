@@ -71,6 +71,16 @@ function renameToJpg(name) {
   return (i > 0 ? name.slice(0, i) : name) + '.jpg'
 }
 
+// THUMB_CACHE_BUSTER — версия thumb'ов. Инкрементируется когда бэк делает
+// массовую перегенерацию всех _thumb.jpg (логика поменялась, например
+// EXIF rotation). Telegram WebView и браузеры кешируют картинки по URL
+// очень агрессивно (Cache-Control headers они часто игнорируют), и без
+// смены URL юзер видит старую закешированную версию.
+//
+// При обычной upload-операции каждое фото имеет уникальное имя файла
+// (random hash), так что коллизии нет — это нужно только для регенов.
+const THUMB_CACHE_BUSTER = 2
+
 /**
  * thumbUrl — для каталога/списков, где фото показывается мелко.
  * Бэк при upload кладёт <name>_thumb.jpg рядом с оригиналом (400px
@@ -86,5 +96,5 @@ export function thumbUrl(originalUrl) {
   const dot = originalUrl.lastIndexOf('.')
   const slash = originalUrl.lastIndexOf('/')
   if (dot < 0 || dot < slash) return originalUrl
-  return originalUrl.slice(0, dot) + '_thumb.jpg'
+  return originalUrl.slice(0, dot) + '_thumb.jpg?v=' + THUMB_CACHE_BUSTER
 }
