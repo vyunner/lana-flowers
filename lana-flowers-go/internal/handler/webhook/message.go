@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"lana-flowers-go/internal/adminbot"
 	"lana-flowers-go/internal/events"
 	"lana-flowers-go/internal/handler/offers"
 	"lana-flowers-go/internal/telegram"
@@ -17,17 +18,38 @@ import (
 // Reply на наш ForceReply (ввод встречной цены).
 
 // handleMessage — /start и обычные сообщения.
-//
-// _ db / m.From сейчас не нужны: единственная команда — /start, без
-// привязки к user_id (welcome не персонализирован). Если когда-то добавим
-// /myorders или persistent state — вернём userID.
-func handleMessage(_ *sql.DB, m *Message) {
+func handleMessage(db *sql.DB, m *Message) {
 	if m.From == nil {
 		return
 	}
 	if m.Text == "/start" {
 		sendWelcome(m.Chat.ID)
+		tgID := strconv.FormatInt(m.From.ID, 10)
+		displayName := strings.TrimSpace(m.From.FirstName + " " + m.From.LastName)
+		go adminbot.Record(db, adminbot.EventUserStarted,
+			map[string]any{
+				"tg_id":        tgID,
+				"display_name": displayName,
+				"username":     m.From.Username,
+			},
+			fmt.Sprintf("👋 <b>Новый /start</b>\n%s%s",
+				escapeName(displayName, tgID), usernameSuffix(m.From.Username)),
+		)
 	}
+}
+
+func escapeName(name, tgID string) string {
+	if name == "" {
+		return "tg:" + tgID
+	}
+	return name
+}
+
+func usernameSuffix(u string) string {
+	if u == "" {
+		return ""
+	}
+	return " (@" + u + ")"
 }
 
 // sendWelcome — единое приветствие в боте: текст + кнопка открыть мини-апп.
@@ -89,7 +111,22 @@ func handleContact(db *sql.DB, m *Message) {
 			ChatID: m.Chat.ID,
 			Text:   "Ошибка при сохранении. Попробуйте ещё раз.",
 		})
+		return
 	}
+
+	// Phone установлен → юзер прошёл регистрацию (имя/аватар/город уже
+	// до этого через мини-апп задались). Сигналим в админ-бот.
+	displayName := strings.TrimSpace(m.From.FirstName + " " + m.From.LastName)
+	go adminbot.Record(db, adminbot.EventUserRegistered,
+		map[string]any{
+			"tg_id":        userID,
+			"display_name": displayName,
+			"username":     m.From.Username,
+			"phone":        phone,
+		},
+		fmt.Sprintf("✅ <b>Регистрация завершена</b>\n%s%s\n%s",
+			escapeName(displayName, userID), usernameSuffix(m.From.Username), phone),
+	)
 }
 
 // counterRe — регексп для извлечения offer_id из reply-контекста.

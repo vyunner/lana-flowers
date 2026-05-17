@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"lana-flowers-go/internal/adminbot"
 	"lana-flowers-go/internal/auth"
 	dbpkg "lana-flowers-go/internal/db"
 	"lana-flowers-go/internal/events"
@@ -44,6 +45,10 @@ func main() {
 	}
 	if len(os.Args) >= 2 && os.Args[1] == "thumbs" {
 		runThumbsCmd(os.Args[2:])
+		return
+	}
+	if len(os.Args) >= 2 && os.Args[1] == "admin-webhook" {
+		runAdminWebhookCmd(os.Args[2:])
 		return
 	}
 
@@ -97,8 +102,10 @@ func main() {
 	defer stopWorkers()
 	offers.StartPendingExpireWorker(workerCtx, conn)
 
-	// Webhook регистрируется ДО auth middleware — защищён secret_token'ом самого Telegram.
+	// Webhook'и регистрируются ДО auth middleware — защищены своими
+	// secret_token'ами самого Telegram (header X-Telegram-Bot-Api-Secret-Token).
 	webhook.RegisterRoutes(r, conn)
+	adminbot.RegisterRoutes(r, conn)
 
 	r.Use(auth.Middleware(conn))
 

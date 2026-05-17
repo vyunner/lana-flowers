@@ -3,8 +3,10 @@ package offers
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 
+	"lana-flowers-go/internal/adminbot"
 	"lana-flowers-go/internal/events"
 	"lana-flowers-go/internal/response"
 	"lana-flowers-go/internal/telegram"
@@ -66,6 +68,18 @@ func Create(c *gin.Context, db *sql.DB) {
 			Type: events.TypeOfferCreated, OfferID: ctx.ID,
 			BouquetTitle: ctx.BouquetTitle, Price: ctx.Price,
 		})
+		go adminbot.Record(db, adminbot.EventOfferCreated,
+			map[string]any{
+				"offer_id":   ctx.ID,
+				"bouquet_id": ctx.BouquetID,
+				"buyer_id":   ctx.BuyerID,
+				"seller_id":  ctx.SellerID,
+				"price":      ctx.Price,
+				"ask_price":  sellerPrice,
+			},
+			fmt.Sprintf("💌 <b>Новое предложение</b>\n%s — %d ₸ (ask: %d ₸)",
+				ctx.BouquetTitle, ctx.Price, sellerPrice),
+		)
 	}
 
 	response.OK(c, gin.H{"id": id})

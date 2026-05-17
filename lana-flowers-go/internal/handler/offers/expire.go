@@ -3,9 +3,11 @@ package offers
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"time"
 
+	"lana-flowers-go/internal/adminbot"
 	"lana-flowers-go/internal/events"
 	"lana-flowers-go/internal/telegram"
 )
@@ -96,5 +98,15 @@ func runExpireSweep(ctx context.Context, db *sql.DB) {
 			Type: events.TypeOfferExpired, OfferID: e.ID,
 			BouquetTitle: e.BouquetTitle, Price: e.Price,
 		})
+		go adminbot.Record(db, adminbot.EventOfferExpired,
+			map[string]any{
+				"offer_id": e.ID,
+				"buyer_id": e.BuyerID,
+				"price":    e.Price,
+				"reason":   "ttl_sweep",
+			},
+			fmt.Sprintf("⏱ <b>Предложение истекло (TTL)</b>\n%s — %d ₸",
+				e.BouquetTitle, e.Price),
+		)
 	}
 }

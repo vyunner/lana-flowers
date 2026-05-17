@@ -3,8 +3,10 @@ package offers
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 
+	"lana-flowers-go/internal/adminbot"
 	"lana-flowers-go/internal/events"
 	"lana-flowers-go/internal/response"
 	"lana-flowers-go/internal/telegram"
@@ -64,6 +66,10 @@ func Respond(c *gin.Context, db *sql.DB) {
 		for _, id := range expired {
 			go notifyExpired(db, id)
 		}
+		go adminbot.Record(db, adminbot.EventOfferAccepted,
+			adminPayload(ctx),
+			fmt.Sprintf("✅ <b>Сделка принята</b>\n%s — %d ₸", ctx.BouquetTitle, ctx.Price),
+		)
 		response.OK(c, gin.H{"status": "accepted"})
 
 	case "reject":
@@ -76,6 +82,10 @@ func Respond(c *gin.Context, db *sql.DB) {
 			Type: events.TypeOfferRejected, OfferID: offerID,
 			BouquetTitle: ctx.BouquetTitle, Price: ctx.Price,
 		})
+		go adminbot.Record(db, adminbot.EventOfferRejected,
+			adminPayload(ctx),
+			fmt.Sprintf("❌ <b>Сделка отклонена</b>\n%s — %d ₸", ctx.BouquetTitle, ctx.Price),
+		)
 		response.OK(c, gin.H{"status": "rejected"})
 
 	case "counter":
@@ -94,6 +104,19 @@ func Respond(c *gin.Context, db *sql.DB) {
 			Type: events.TypeOfferCountered, OfferID: newID,
 			BouquetTitle: ctx.BouquetTitle, Price: req.Price,
 		})
+		go adminbot.Record(db, adminbot.EventOfferCountered,
+			map[string]any{
+				"old_offer_id": ctx.ID,
+				"new_offer_id": newID,
+				"bouquet_id":   ctx.BouquetID,
+				"buyer_id":     ctx.BuyerID,
+				"seller_id":    ctx.SellerID,
+				"old_price":    ctx.Price,
+				"new_price":    req.Price,
+			},
+			fmt.Sprintf("🔄 <b>Встречная цена</b>\n%s: %d → %d ₸",
+				ctx.BouquetTitle, ctx.Price, req.Price),
+		)
 		response.OK(c, gin.H{"status": "countered", "new_offer_id": newID})
 
 	case "cancel":
@@ -119,6 +142,17 @@ func Respond(c *gin.Context, db *sql.DB) {
 			Type: events.TypeOfferCancelled, OfferID: offerID,
 			BouquetTitle: cancelCtx.BouquetTitle, Price: cancelCtx.Price,
 		})
+		go adminbot.Record(db, adminbot.EventOfferCancelled,
+			map[string]any{
+				"offer_id":     cancelCtx.ID,
+				"bouquet_id":   cancelCtx.BouquetID,
+				"buyer_id":     cancelCtx.BuyerID,
+				"seller_id":    cancelCtx.SellerID,
+				"price":        cancelCtx.Price,
+				"initiated_by": uid,
+			},
+			fmt.Sprintf("⚠️ <b>Сделка отменена</b>\n%s — %d ₸", cancelCtx.BouquetTitle, cancelCtx.Price),
+		)
 		response.OK(c, gin.H{"status": "cancelled"})
 
 	case "withdraw":
@@ -136,6 +170,10 @@ func Respond(c *gin.Context, db *sql.DB) {
 		// «пустоту» в inbox'е без объяснений. Используем именно Withdrawn,
 		// а не DealCancelled: сделки не было, букет с продажи не уходил.
 		go telegram.NotifyOfferWithdrawn(wCtx.SellerID, wCtx.BouquetTitle, wCtx.Price)
+		go adminbot.Record(db, adminbot.EventOfferWithdrawn,
+			adminPayload(wCtx),
+			fmt.Sprintf("↩️ <b>Предложение отозвано</b>\n%s — %d ₸", wCtx.BouquetTitle, wCtx.Price),
+		)
 		response.OK(c, gin.H{"status": "withdrawn"})
 
 	default:
@@ -157,6 +195,24 @@ func notifyExpired(db *sql.DB, offerID int64) {
 		Type: events.TypeOfferExpired, OfferID: offerID,
 		BouquetTitle: ctx.BouquetTitle, Price: ctx.Price,
 	})
+	adminbot.Record(db, adminbot.EventOfferExpired,
+		adminPayload(ctx),
+		fmt.Sprintf("⏱ <b>Предложение истекло</b>\n%s — %d ₸ (опоздал на accept)",
+			ctx.BouquetTitle, ctx.Price),
+	)
+}
+
+// adminPayload — общий map[string]any для всех action'ов respond.go и
+// notifyExpired. Все поля стандартные, чтобы потом в админ-UI можно было
+// фильтровать по любому identifier'у.
+func adminPayload(ctx *OfferContext) map[string]any {
+	return map[string]any{
+		"offer_id":   ctx.ID,
+		"bouquet_id": ctx.BouquetID,
+		"buyer_id":   ctx.BuyerID,
+		"seller_id":  ctx.SellerID,
+		"price":      ctx.Price,
+	}
 }
 
 func serviceErr(c *gin.Context, err error) {

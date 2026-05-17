@@ -2,9 +2,11 @@ package bouquets
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strings"
 
+	"lana-flowers-go/internal/adminbot"
 	"lana-flowers-go/internal/response"
 
 	"github.com/gin-gonic/gin"
@@ -106,6 +108,19 @@ func Create(c *gin.Context, db *sql.DB) {
 		response.Err(c, http.StatusInternalServerError, "DB_ERROR", err.Error())
 		return
 	}
+
+	go adminbot.Record(db, adminbot.EventBouquetCreated,
+		map[string]any{
+			"bouquet_id": id,
+			"seller_id":  uid,
+			"title":      req.Title,
+			"price":      req.Price,
+			"city":       req.City,
+			"category":   req.Category,
+		},
+		fmt.Sprintf("🌸 <b>Новое объявление</b>\n%s — %d ₸\n%s · %s",
+			req.Title, req.Price, req.City, req.Category),
+	)
 
 	response.OK(c, gin.H{"id": id})
 }
