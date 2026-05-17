@@ -9,7 +9,14 @@ import (
 	"strings"
 )
 
-// formatPrice превращает 12500 → "12 500".
+// nbsp — неразрывный пробел (U+00A0). Используем между группами цифр в
+// цене и перед «₸», чтобы Telegram-рендерер не разрывал «30 000» или
+// «27 000 ₸» по обычному space'у при wrap'е сообщения в узком пузыре чата.
+const nbsp = " "
+
+// formatPrice превращает 12500 → "12<NBSP>500". NBSP вместо обычного
+// пробела чтобы число не расщеплялось на перенос строки в Telegram-чате
+// (см. nbsp выше). На рендеринг визуально не влияет — та же ширина.
 func formatPrice(n int64) string {
 	s := strconv.FormatInt(n, 10)
 	if len(s) <= 3 {
@@ -20,13 +27,13 @@ func formatPrice(n int64) string {
 	if pre > 0 {
 		sb.WriteString(s[:pre])
 		if len(s) > pre {
-			sb.WriteByte(' ')
+			sb.WriteString(nbsp)
 		}
 	}
 	for i := pre; i < len(s); i += 3 {
 		sb.WriteString(s[i : i+3])
 		if i+3 < len(s) {
-			sb.WriteByte(' ')
+			sb.WriteString(nbsp)
 		}
 	}
 	return sb.String()
@@ -47,21 +54,32 @@ func priceDeltaPct(ask, offer int64) (int, bool) {
 	return pct, true
 }
 
-// formatPriceWithDelta — строка цены с инлайн-контекстом разницы.
+// formatPriceWithDelta — multi-line блок «Цена: NN ₸ (±%) / Ваша: XX ₸».
 //
-//	formatPriceWithDelta(25000, 30000) → "<b>25 000 ₸</b> · −17% от вашей цены (30 000 ₸)"
-//	formatPriceWithDelta(30000, 30000) → "<b>30 000 ₸</b>"  (без избыточной "вашей цены")
-//	formatPriceWithDelta(31000, 30000) → "<b>31 000 ₸</b> · +3% к вашей цене (30 000 ₸)"
+// Inline-формат («NN ₸ · −10% от вашей цены (XX ₸)») в DM не лезет в
+// узкий пузырь — рвётся в неудобных местах. Multi-line c label:value
+// предсказуем по ширине, каждая строка ≤ ~25 символов, не wrap'ится.
+//
+//	formatPriceWithDelta(25000, 30000) →
+//	    "Цена: <b>25 000 ₸</b> (−17%)\nВаша: 30 000 ₸"
+//	formatPriceWithDelta(30000, 30000) →
+//	    "Цена: <b>30 000 ₸</b>"     ← когда равно, вторая строка не нужна
+//	formatPriceWithDelta(31000, 30000) →
+//	    "Цена: <b>31 000 ₸</b> (+3%)\nВаша: 30 000 ₸"
 func formatPriceWithDelta(offerPrice, askPrice int64) string {
-	base := fmt.Sprintf("<b>%s ₸</b>", formatPrice(offerPrice))
+	base := fmt.Sprintf("Цена:"+nbsp+"<b>%s"+nbsp+"₸</b>", formatPrice(offerPrice))
 	pct, ok := priceDeltaPct(askPrice, offerPrice)
 	if !ok {
 		return base
 	}
-	if pct > 0 {
-		return fmt.Sprintf("%s · −%d%% от вашей цены (%s ₸)", base, pct, formatPrice(askPrice))
+	sign := "−"
+	abs := pct
+	if pct < 0 {
+		sign = "+"
+		abs = -pct
 	}
-	return fmt.Sprintf("%s · +%d%% к вашей цене (%s ₸)", base, -pct, formatPrice(askPrice))
+	return fmt.Sprintf("%s"+nbsp+"(%s%d%%)\nВаша:"+nbsp+"%s"+nbsp+"₸",
+		base, sign, abs, formatPrice(askPrice))
 }
 
 // miniAppButton — кнопка-deeplink в мини-апп на нужный экран.
@@ -194,7 +212,7 @@ func NotifyOfferCountered(buyerTGID string, newOfferID, bouquetID int64, bouquet
 	}
 
 	text := fmt.Sprintf(
-		"🔄 Встречная цена\n\n<b>%s</b>\n\n<b>%s ₸</b> (вы предлагали %s ₸)",
+		"🔄 Встречная цена\n\n<b>%s</b>\n\nЦена:"+nbsp+"<b>%s"+nbsp+"₸</b>\nВы предлагали:"+nbsp+"%s"+nbsp+"₸",
 		escapeHTML(bouquetTitle),
 		formatPrice(newPrice),
 		formatPrice(oldPrice),
@@ -236,7 +254,7 @@ func NotifyOfferAccepted(buyerTGID string, bouquetTitle string, finalPrice int64
 	_ = sellerName // имя контрагента доступно в Сделках, в DM избыточно
 
 	text := fmt.Sprintf(
-		"✅ Предложение принято\n\n<b>%s</b>\n\n<b>%s ₸</b>\n\nДоговоритесь о деталях с продавцом.",
+		"✅ Предложение принято\n\n<b>%s</b>\n\nЦена:"+nbsp+"<b>%s"+nbsp+"₸</b>\n\nДоговоритесь о деталях с продавцом.",
 		escapeHTML(bouquetTitle),
 		formatPrice(finalPrice),
 	)
@@ -260,7 +278,7 @@ func NotifyDealConfirmed(sellerTGID string, bouquetTitle string, finalPrice int6
 		return
 	}
 	text := fmt.Sprintf(
-		"✅ Сделка состоялась\n\n<b>%s</b>\n\n<b>%s ₸</b>\n\nДоговоритесь о деталях с покупателем.",
+		"✅ Сделка состоялась\n\n<b>%s</b>\n\nЦена:"+nbsp+"<b>%s"+nbsp+"₸</b>\n\nДоговоритесь о деталях с покупателем.",
 		escapeHTML(bouquetTitle),
 		formatPrice(finalPrice),
 	)
@@ -280,7 +298,7 @@ func NotifyOfferRejected(buyerTGID string, bouquetTitle string, offeredPrice int
 		return
 	}
 	text := fmt.Sprintf(
-		"❌ Предложение отклонено\n\n<b>%s</b>\n\nВаша цена: <b>%s ₸</b>\n\nПопробуйте другую цену или посмотрите похожие букеты.",
+		"❌ Предложение отклонено\n\n<b>%s</b>\n\nВаша цена:"+nbsp+"<b>%s"+nbsp+"₸</b>\n\nПопробуйте другую цену или посмотрите похожие букеты.",
 		escapeHTML(bouquetTitle),
 		formatPrice(offeredPrice),
 	)
@@ -303,7 +321,7 @@ func NotifyOfferWithdrawn(sellerTGID string, bouquetTitle string, offeredPrice i
 		return
 	}
 	text := fmt.Sprintf(
-		"↩️ Покупатель отозвал предложение\n\n<b>%s</b>\n\n<b>%s ₸</b>\n\nБукет остаётся в продаже.",
+		"↩️ Покупатель отозвал предложение\n\n<b>%s</b>\n\nПредложение:"+nbsp+"<b>%s"+nbsp+"₸</b>\n\nБукет остаётся в продаже.",
 		escapeHTML(bouquetTitle),
 		formatPrice(offeredPrice),
 	)
@@ -335,7 +353,7 @@ func NotifyDealCancelled(toTGID string, bouquetTitle string, finalPrice int64, r
 	}
 
 	text := fmt.Sprintf(
-		"⚠️ Сделка отменена\n\n<b>%s</b>\n\n<b>%s ₸</b>\n\n%s",
+		"⚠️ Сделка отменена\n\n<b>%s</b>\n\nЦена:"+nbsp+"<b>%s"+nbsp+"₸</b>\n\n%s",
 		escapeHTML(bouquetTitle),
 		formatPrice(finalPrice),
 		body,
@@ -355,7 +373,7 @@ func NotifyOfferExpired(buyerTGID, bouquetTitle string, offerPrice int64) {
 		return
 	}
 	text := fmt.Sprintf(
-		"⏱ Букет ушёл другому покупателю\n\n<b>%s</b>\n\nВаше предложение <b>%s ₸</b> отменено.",
+		"⏱ Букет ушёл другому покупателю\n\n<b>%s</b>\n\nВаше предложение"+nbsp+"<b>%s"+nbsp+"₸</b> отменено.",
 		escapeHTML(bouquetTitle),
 		formatPrice(offerPrice),
 	)
