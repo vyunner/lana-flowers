@@ -314,26 +314,27 @@ function goCatalog() {
                   </div>
                 </div>
               </div>
-              <button
-                class="cta primary"
-                :disabled="busyOfferId === o.id"
-                @click="accept(o)"
-              >
-                Согласиться на {{ formatPrice(o.price) }} ₸
-              </button>
-              <div class="links">
-                <button class="link" type="button" @click="openCounter(o)">
-                  Предложить свою
-                </button>
-                <span class="dot">·</span>
+              <div class="actions">
                 <button
-                  class="link danger"
-                  type="button"
+                  class="btn primary"
                   :disabled="busyOfferId === o.id"
-                  @click="reject(o)"
+                  @click="accept(o)"
                 >
-                  Отклонить
+                  Согласиться на {{ formatPrice(o.price) }} ₸
                 </button>
+                <div class="btn-row">
+                  <button class="btn secondary" type="button" @click="openCounter(o)">
+                    Предложить свою
+                  </button>
+                  <button
+                    class="btn secondary danger"
+                    type="button"
+                    :disabled="busyOfferId === o.id"
+                    @click="reject(o)"
+                  >
+                    Отклонить
+                  </button>
+                </div>
               </div>
             </article>
           </div>
@@ -357,12 +358,12 @@ function goCatalog() {
                   </div>
                 </div>
               </div>
-              <button class="cta primary" type="button" @click="showContact(o)">
-                Связаться с {{ o.role === 'buyer' ? 'продавцом' : 'покупателем' }}
-              </button>
-              <div class="links">
+              <div class="actions">
+                <button class="btn primary" type="button" @click="showContact(o)">
+                  Связаться с {{ o.role === 'buyer' ? 'продавцом' : 'покупателем' }}
+                </button>
                 <button
-                  class="link danger"
+                  class="btn secondary danger"
                   type="button"
                   :disabled="busyOfferId === o.id"
                   @click="cancelDeal(o)"
@@ -396,9 +397,9 @@ function goCatalog() {
                   <div class="hint">{{ cpName(o) }} ещё думает</div>
                 </div>
               </div>
-              <div class="links">
+              <div class="actions">
                 <button
-                  class="link"
+                  class="btn secondary"
                   type="button"
                   :disabled="busyOfferId === o.id"
                   @click="withdrawOwn(o)"
@@ -656,38 +657,59 @@ function goCatalog() {
   font-style: italic;
 }
 
-/* ---- CTA primary внутри карточки ---- */
-.cta {
+/* ---- Действия в карточке ---- */
+/* Primary CTA сверху, под ней опционально ряд secondary-кнопок 50/50.
+   Все три типа — это filled-кнопки с одинаковой высотой и border-radius,
+   разница в фоне: primary = бордовый акцент, secondary = серый surface-2,
+   danger-вариант secondary окрашивает только текст в красный. */
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.btn-row {
+  display: flex;
+  gap: 6px;
+}
+.btn-row > .btn {
+  flex: 1;
+  min-width: 0;
+}
+.btn {
   width: 100%;
-  padding: 13px;
+  padding: 10px 12px;
   border-radius: 10px;
   border: 0;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   transition: background 0.15s, transform 0.1s;
 }
-.cta:active:not(:disabled) {
+.btn:active:not(:disabled) {
   transform: scale(0.98);
 }
-.cta:disabled {
+.btn:disabled {
   opacity: 0.5;
 }
-.cta.primary {
+.btn.primary {
   background: var(--accent);
   color: var(--accent-text);
+  font-weight: 700;
 }
-.cta.primary:active:not(:disabled) {
+.btn.primary:active:not(:disabled) {
   background: var(--accent-hover);
 }
-
-/* ---- Text-link'и под CTA ---- */
-.links {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex-wrap: wrap;
+.btn.secondary {
+  background: var(--surface-2);
+  color: var(--text);
 }
+.btn.secondary:active:not(:disabled) {
+  background: var(--border);
+}
+.btn.secondary.danger {
+  color: #d6553f;
+}
+
+/* ---- Text-links (для строк-списков «Снять», «Показать историю») ---- */
 .link {
   background: transparent;
   border: 0;
@@ -709,10 +731,6 @@ function goCatalog() {
 .link.muted {
   color: var(--text-muted);
   font-weight: 500;
-}
-.dot {
-  color: var(--text-muted);
-  font-size: 13px;
 }
 
 /* ---- Компактный список (мои букеты, история) ---- */
