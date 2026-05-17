@@ -175,6 +175,50 @@ func ListRequests(db *sql.DB) ([]Request, error) {
 
 // ---- event_log ----
 
+// ---- статистика для админ-меню ----
+
+type Stats struct {
+	StartsTotal     int // всего тапов /start (event_log)
+	StartsUnique    int // уникальных tg_id, дотыкавшихся /start
+	Registered      int // users.phone_number <> '' (полный онбординг)
+	BouquetsPosted  int // всего опубликованных букетов
+	OfferingBuyers  int // уникальных tg_id, сделавших ≥1 предложение
+}
+
+// GetStats — четыре простых COUNT'а в одном вызове. Каждый запрос
+// дешёвый (event_log по indexed event_type, users/bouquets/offers
+// маленькие). Не транзакционно — между запросами цифры могут чуть
+// разойтись, для админ-панели это допустимо.
+func GetStats(db *sql.DB) (Stats, error) {
+	var s Stats
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM event_log WHERE event_type = 'user_started'`,
+	).Scan(&s.StartsTotal); err != nil {
+		return s, err
+	}
+	if err := db.QueryRow(
+		`SELECT COUNT(DISTINCT payload->>'tg_id') FROM event_log WHERE event_type = 'user_started'`,
+	).Scan(&s.StartsUnique); err != nil {
+		return s, err
+	}
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM users WHERE phone_number <> ''`,
+	).Scan(&s.Registered); err != nil {
+		return s, err
+	}
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM bouquets`,
+	).Scan(&s.BouquetsPosted); err != nil {
+		return s, err
+	}
+	if err := db.QueryRow(
+		`SELECT COUNT(DISTINCT buyer_id) FROM offers`,
+	).Scan(&s.OfferingBuyers); err != nil {
+		return s, err
+	}
+	return s, nil
+}
+
 // LogEvent — append-only запись события. Payload — произвольный JSON
 // (структура каждого event-type своя, см. вызовы adminbot.Record).
 // Ошибки логируем но не возвращаем — caller (hookpoint в основном коде)

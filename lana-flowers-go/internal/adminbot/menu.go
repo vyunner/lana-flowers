@@ -14,18 +14,20 @@ import "fmt"
 //	"m:noop"           — заглушка для display-only кнопок
 
 const (
-	cbMain         = "m:main"
-	cbNotif        = "m:notif"
-	cbNotifToggle  = "m:notif:toggle:" // + eventType
-	cbAccess       = "m:access"
-	cbAccessGrant  = "m:access:grant:" // + tg_id
-	cbAccessDeny   = "m:access:deny:"  // + tg_id
+	cbMain        = "m:main"
+	cbNotif       = "m:notif"
+	cbNotifToggle = "m:notif:toggle:" // + eventType
+	cbAccess      = "m:access"
+	cbAccessGrant = "m:access:grant:" // + tg_id
+	cbAccessDeny  = "m:access:deny:"  // + tg_id
+	cbStats       = "m:stats"
 )
 
-// mainMenu — корневое меню админа: два раздела.
+// mainMenu — корневое меню админа: три раздела.
 func mainMenu() *InlineKeyboardMarkup {
 	return &InlineKeyboardMarkup{
 		InlineKeyboard: [][]InlineKeyboardButton{
+			{{Text: "📊 Статистика", CallbackData: cbStats}},
 			{{Text: "🔔 Уведомления", CallbackData: cbNotif}},
 			{{Text: "👤 Доступ к панели", CallbackData: cbAccess}},
 		},
@@ -88,4 +90,24 @@ const (
 
 func accessEmptyText() string {
 	return accessText + "\n\n<i>Заявок нет.</i>"
+}
+
+// statsMenu — single «Назад»-кнопка. Цифры в body сообщения, не на кнопках.
+func statsMenu() *InlineKeyboardMarkup {
+	return &InlineKeyboardMarkup{
+		InlineKeyboard: [][]InlineKeyboardButton{
+			{{Text: "← Назад", CallbackData: cbMain}},
+		},
+	}
+}
+
+func statsText(s Stats) string {
+	return fmt.Sprintf(
+		"<b>📊 Статистика</b>\n\n"+
+			"Нажали /start: <b>%d</b> (уникальных: <b>%d</b>)\n"+
+			"Прошли регистрацию: <b>%d</b>\n"+
+			"Опубликовано объявлений: <b>%d</b>\n"+
+			"Делали предложения: <b>%d</b>",
+		s.StartsTotal, s.StartsUnique, s.Registered, s.BouquetsPosted, s.OfferingBuyers,
+	)
 }

@@ -93,6 +93,16 @@ func handleCallback(db *sql.DB, q *CallbackQuery) {
 		_ = EditMessageText(q.Message.Chat.ID, q.Message.MessageID, mainText, mainMenu())
 		_ = AnswerCallbackQuery(q.ID, "", false)
 
+	case data == cbStats:
+		s, err := GetStats(db)
+		if err != nil {
+			log.Printf("adminbot GetStats: %v", err)
+			_ = AnswerCallbackQuery(q.ID, "Ошибка", true)
+			return
+		}
+		_ = EditMessageText(q.Message.Chat.ID, q.Message.MessageID, statsText(s), statsMenu())
+		_ = AnswerCallbackQuery(q.ID, "", false)
+
 	case data == cbNotif:
 		_ = EditMessageText(q.Message.Chat.ID, q.Message.MessageID, notifText, notifMenu(a))
 		_ = AnswerCallbackQuery(q.ID, "", false)
