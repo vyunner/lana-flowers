@@ -53,6 +53,9 @@ func Respond(c *gin.Context, db *sql.DB) {
 			return
 		}
 		go telegram.NotifyOfferAccepted(ctx.BuyerID, ctx.BouquetTitle, ctx.Price, ctx.SellerName)
+		// Зеркальная нотификация продавцу-инициатору: подтверждение что
+		// сделка реально оформилась + кнопка «Открыть Сделки» в DM.
+		go telegram.NotifyDealConfirmed(ctx.SellerID, ctx.BouquetTitle, ctx.Price)
 		// SSE-event покупателю — он узнает мгновенно даже сидя в мини-аппе
 		events.Default().Publish(ctx.BuyerID, events.Event{
 			Type: events.TypeOfferAccepted, OfferID: offerID,

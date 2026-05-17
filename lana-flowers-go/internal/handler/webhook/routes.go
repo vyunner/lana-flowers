@@ -236,6 +236,10 @@ func handleCallback(db *sql.DB, q *CallbackQuery) {
 		_ = telegram.AnswerCallbackQuery(q.ID, "✅ Принято", false)
 		go telegram.NotifyOfferAccepted(ctx.BuyerID, ctx.BouquetTitle, ctx.Price,
 			ctx.SellerName)
+		// Зеркальное подтверждение продавцу (тому кто нажал accept) — отдельной
+		// нотификацией, чтобы под рукой была кнопка «Открыть Сделки»: иначе
+		// единственный фидбэк это appendStatusLine ниже на старом сообщении.
+		go telegram.NotifyDealConfirmed(ctx.SellerID, ctx.BouquetTitle, ctx.Price)
 		events.Default().Publish(ctx.BuyerID, events.Event{
 			Type: events.TypeOfferAccepted, OfferID: offerID,
 			BouquetTitle: ctx.BouquetTitle, Price: ctx.Price,

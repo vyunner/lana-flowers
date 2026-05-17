@@ -248,6 +248,30 @@ func NotifyOfferAccepted(buyerTGID string, bouquetTitle string, finalPrice int64
 	sendStructured(chatID, text, markup, "Accepted")
 }
 
+// NotifyDealConfirmed — продавцу: он принял оффер, сделка состоялась.
+// Зеркальная функция к NotifyOfferAccepted (для покупателя). Шлётся даже
+// если accept был сделан через inline-кнопку в DM-боте, который обновляет
+// старое сообщение — отдельное явное подтверждение полезнее, плюс кнопка
+// «Открыть Сделки» сразу под рукой без лазания по чату.
+func NotifyDealConfirmed(sellerTGID string, bouquetTitle string, finalPrice int64) {
+	defer trackEnd(trackStart())
+	chatID, err := strconv.ParseInt(sellerTGID, 10, 64)
+	if err != nil {
+		return
+	}
+	text := fmt.Sprintf(
+		"✅ Сделка состоялась\n\n<b>%s</b>\n\n<b>%s ₸</b>\n\nДоговоритесь о деталях с покупателем.",
+		escapeHTML(bouquetTitle),
+		formatPrice(finalPrice),
+	)
+	markup := &InlineKeyboardMarkup{
+		InlineKeyboard: [][]InlineKeyboardButton{
+			{miniAppButton("💬 Открыть Сделки", "deals")},
+		},
+	}
+	sendStructured(chatID, text, markup, "DealConfirmed")
+}
+
 // NotifyOfferRejected — покупателю: его оффер отклонён. CTA в каталог.
 func NotifyOfferRejected(buyerTGID string, bouquetTitle string, offeredPrice int64) {
 	defer trackEnd(trackStart())
