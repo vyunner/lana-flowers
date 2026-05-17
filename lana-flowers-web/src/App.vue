@@ -1,8 +1,8 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { categories } from './data/categories'
 import { haptic, hapticNotify } from './telegram'
-import { currentStep, setMe } from './state/auth'
+import { currentStep, me, setMe } from './state/auth'
 import { getMe } from './api/users'
 import TopBar from './components/TopBar.vue'
 import CategoryChips from './components/CategoryChips.vue'
@@ -27,10 +27,9 @@ onMounted(async () => {
   try {
     const u = await getMe()
     setMe(u)
-    // Если у юзера задан город — каталог сразу открывается в нём
-    // (а не в дефолтной Алматы). selectedCity создан раньше с дефолтом
-    // на случай если getMe ещё не успел.
-    if (u?.city) selectedCity.value = u.city
+    // selectedCity синкается через watch(() => me.value?.city, …) ниже —
+    // тот же путь и для возвращающегося юзера (с уже задан city), и для
+    // нового после прохождения onboarding-city.
   } catch {
     // /users/me не должен фейлиться при валидном initData
   } finally {
@@ -61,7 +60,25 @@ function onDealsUpdated(n) {
 const activeCategory = ref('all')
 
 // ---- City: один общий стейт для шапки и формы продажи ----
+// Изначально 'Алматы' как fallback, но если юзер уже прошёл онбординг-city —
+// перезатираем на его me.city. Watch ниже ловит как первый getMe (когда city
+// уже задан у возвращающегося юзера), так и завершение онбординг-шага city
+// (когда me.city впервые становится непустым).
 const selectedCity = ref('Алматы')
+
+watch(
+  () => me.value?.city,
+  (newCity, oldCity) => {
+    // Синкаем selectedCity ТОЛЬКО когда у юзера ВПЕРВЫЕ появился город
+    // (oldCity пустой/undefined → newCity непустой). Дальше юзер сам
+    // управляет TopBar'ом через CitySheet — не хотим затирать его выбор
+    // если он по какой-то причине поменяет home-city в профиле.
+    if (newCity && !oldCity) {
+      selectedCity.value = newCity
+    }
+  },
+  { immediate: true },
+)
 
 const cityOpen = ref(false)
 function openCitySheet() {
