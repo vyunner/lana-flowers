@@ -10,6 +10,7 @@
 package image
 
 import (
+	"bytes"
 	"image"
 	"image/jpeg"
 	_ "image/png" // регистрация декодера PNG
@@ -52,16 +53,22 @@ func ThumbPath(src string) string {
 // Ошибки декодирования (юзер прислал что-то странное) пробрасываются
 // caller'у — он решает фолбэчить ли на отсутствие thumb'а.
 func GenerateThumb(srcPath, dstPath string) error {
-	f, err := os.Open(srcPath)
+	data, err := os.ReadFile(srcPath)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
-	src, _, err := image.Decode(f)
+	// EXIF orientation читаем ДО декода (iPhone JPEG-фотки приходят с
+	// тегом «rotate 90° CW»). image.Decode сырые пиксели как есть, без
+	// поворота — поэтому пост-фактум применяем applyOrientation, иначе
+	// thumb приедет повёрнутым.
+	orient := readEXIFOrientation(bytes.NewReader(data))
+
+	src, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
+	src = applyOrientation(src, orient)
 
 	bounds := src.Bounds()
 	w, h := bounds.Dx(), bounds.Dy()
@@ -94,10 +101,18 @@ func GenerateThumb(srcPath, dstPath string) error {
 // GenerateThumbStream — вариант для in-memory случаев. Не используется
 // сейчас, но пригодится если перейдём на S3 (нет os.File, есть io.Reader).
 func GenerateThumbStream(src io.Reader, dst io.Writer) error {
-	img, _, err := image.Decode(src)
+	// Читаем весь поток в память — нужно дважды (EXIF + Decode), а io.Reader
+	// одноразовый. Для типичных фоток ≤10MB это норм.
+	data, err := io.ReadAll(src)
 	if err != nil {
 		return err
 	}
+	orient := readEXIFOrientation(bytes.NewReader(data))
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	img = applyOrientation(img, orient)
 	bounds := img.Bounds()
 	w, h := bounds.Dx(), bounds.Dy()
 	var nw, nh int
