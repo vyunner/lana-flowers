@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { haptic, tg } from '../telegram'
 import { me } from '../state/auth'
 import { formatPhoneKz } from '../utils/format'
+import { pushToast } from '../state/toasts'
 import EditProfileModal from './EditProfileModal.vue'
 import PullToRefreshScroll from './base/PullToRefreshScroll.vue'
 
@@ -34,6 +35,39 @@ const editOpen = ref(false)
 // API-запросов на этом экране нет, всё в App.vue/getMe.
 async function noop() {}
 defineExpose({ refresh: noop })
+
+// ---- ВРЕМЕННЫЕ тестовые кнопки для in-app toast'ов ----
+// Дёргают pushToast напрямую с теми же текстами/kind что в App.vue
+// handleEvent. Тестовое API /admin/preview-event не используется (SSE
+// между прод-эндпоинтом и юзером оказался флакки на проверке).
+// УДАЛИТЬ когда отладим визуал.
+const TEST_TITLE = '«Пионы 50 шт»'
+function testToast(type) {
+  haptic('light')
+  switch (type) {
+    case 'created':
+      pushToast(`Новое предложение 27 000 ₸ за ${TEST_TITLE}`, { kind: 'info' })
+      break
+    case 'accepted':
+      pushToast(`Принято 27 000 ₸ за ${TEST_TITLE}`, { kind: 'success', ttl: 6000 })
+      break
+    case 'rejected':
+      pushToast(`Отклонено: ${TEST_TITLE}`, { kind: 'err' })
+      break
+    case 'countered':
+      pushToast(`Встречное 28 500 ₸ за ${TEST_TITLE}`, { kind: 'warn' })
+      break
+    case 'cancelled':
+      pushToast(`Сделка отменена: ${TEST_TITLE}`, { kind: 'warn' })
+      break
+    case 'expired':
+      pushToast(
+        `Букет ${TEST_TITLE} ушёл другому. Ваше предложение 9 500 ₸ отменено`,
+        { kind: 'err' },
+      )
+      break
+  }
+}
 </script>
 
 <template>
@@ -53,6 +87,31 @@ defineExpose({ refresh: noop })
           Редактировать профиль
         </button>
       </header>
+
+      <!-- ВРЕМЕННО: тесты in-app toast'ов. Удалить когда визуал отладим. -->
+      <section class="test-section">
+        <div class="test-title">Тест уведомлений</div>
+        <div class="test-grid">
+          <button class="test-btn info" type="button" @click="testToast('created')">
+            Новое предложение
+          </button>
+          <button class="test-btn success" type="button" @click="testToast('accepted')">
+            Принято
+          </button>
+          <button class="test-btn err" type="button" @click="testToast('rejected')">
+            Отклонено
+          </button>
+          <button class="test-btn warn" type="button" @click="testToast('countered')">
+            Встречное
+          </button>
+          <button class="test-btn warn" type="button" @click="testToast('cancelled')">
+            Сделка отменена
+          </button>
+          <button class="test-btn err" type="button" @click="testToast('expired')">
+            Опоздал
+          </button>
+        </div>
+      </section>
 
       <button class="whatsapp-btn" type="button" @click="openWhatsApp">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -169,4 +228,41 @@ defineExpose({ refresh: noop })
   color: var(--text-muted);
   margin: 18px 0 0;
 }
+
+/* ВРЕМЕННО: блок тестов уведомлений. Удалить вместе с testToast и UI. */
+.test-section {
+  margin: 16px 0 12px;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+}
+.test-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  text-align: center;
+}
+.test-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.test-btn {
+  padding: 9px 8px;
+  border: 0;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+}
+.test-btn:active {
+  opacity: 0.85;
+}
+.test-btn.info { background: #111; }
+.test-btn.success { background: #2c8a52; }
+.test-btn.warn { background: #7c2538; }
+.test-btn.err { background: #d6553f; }
 </style>
