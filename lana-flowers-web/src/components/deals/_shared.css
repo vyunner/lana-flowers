@@ -1,0 +1,250 @@
+/* Стили общие для всех карточек/строк во вкладке «Сделки».
+   Импортируется scoped'ом в OfferCard*.vue / BouquetRow*.vue / HistoryRow.vue.
+   Скопленные имена (.btn, .card и т.п.) безопасны — в нескоупленном глобальном
+   style.css этих селекторов нет. */
+
+/* ---- Section heading ---- */
+.sec-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin: 0 4px 8px;
+}
+.sec-title.urgent {
+  color: var(--accent);
+}
+.sec-title.muted {
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 14px;
+}
+
+/* ---- Карточка оффера (большая, с фото 80×80 + actions) ---- */
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.card-row {
+  display: flex;
+  gap: 14px;
+}
+.photo {
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+}
+.card-info {
+  flex: 1;
+  min-width: 0;
+}
+.card-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Meta-строка: «От Иван · через 1 ч» / «Вы предложили 9 500 ₸ · через 1 ч». */
+.card-meta {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 3px;
+  line-height: 1.35;
+}
+.card-meta b {
+  color: var(--text);
+  font-weight: 700;
+}
+.card-meta .sep {
+  margin: 0 6px;
+  color: var(--text-muted);
+}
+
+/* Inline-таймер истечения (часть .card-meta). Цвет = срочность. */
+.inline-time {
+  color: var(--text-muted);
+}
+.inline-time.warn {
+  color: var(--accent);
+  font-weight: 600;
+}
+.inline-time.critical {
+  color: #d6553f;
+  font-weight: 700;
+}
+
+/* Дельта vs запрошенной цены — показывается ТОЛЬКО когда есть разница.
+   Скидку (покупатель просит меньше) — красным, надбавку — зелёным. */
+.delta-line {
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+.delta-line.down {
+  color: #d6553f;
+}
+.delta-line.up {
+  color: #2c8a52;
+}
+
+.hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-style: italic;
+}
+
+/* ---- Кнопки в карточке ---- */
+/* Primary CTA сверху, под ней опционально ряд secondary-кнопок 50/50.
+   Все три типа — это filled-кнопки с одинаковой высотой и border-radius,
+   разница в фоне: primary = бордо, success = зелёная, secondary = серая. */
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.btn-row {
+  display: flex;
+  gap: 6px;
+}
+.btn-row > .btn {
+  flex: 1;
+  min-width: 0;
+}
+.btn {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 0;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.15s, transform 0.1s;
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.btn:disabled {
+  opacity: 0.5;
+}
+.btn.primary {
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 700;
+}
+.btn.primary:active:not(:disabled) {
+  background: var(--accent-hover);
+}
+/* success — для positive-CTA: «Связаться» на уже состоявшейся сделке.
+   Бордовый акцент = «нужно решить», зелёный = «всё ок, давай мутить». */
+.btn.success {
+  background: #2c8a52;
+  color: #fff;
+  font-weight: 700;
+}
+.btn.success:active:not(:disabled) {
+  background: #226c40;
+}
+.btn.secondary {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.btn.secondary:active:not(:disabled) {
+  background: var(--border);
+}
+.btn.secondary.danger {
+  color: #d6553f;
+}
+
+/* ---- Text-links (для «Снять» в строке, «Показать историю» внизу) ---- */
+.link {
+  background: transparent;
+  border: 0;
+  padding: 6px 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.link:active:not(:disabled) {
+  color: var(--text);
+}
+.link:disabled {
+  opacity: 0.5;
+}
+.link.danger {
+  color: #d6553f;
+}
+.link.muted {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ---- Компактная строка (мои букеты на продаже, история) ---- */
+.compact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.compact-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.compact-row.history-row {
+  border-color: transparent;
+  background: var(--surface-2);
+}
+.compact-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+}
+.compact-body {
+  flex: 1;
+  min-width: 0;
+}
+.compact-title {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.compact-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.compact-action {
+  flex-shrink: 0;
+}
