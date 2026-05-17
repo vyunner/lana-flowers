@@ -19,8 +19,7 @@ import OnboardingName from './components/OnboardingName.vue'
 import OnboardingAvatar from './components/OnboardingAvatar.vue'
 import Toast from './components/base/Toast.vue'
 import { useEventStream } from './composables/useEventStream'
-import { pushToast } from './state/toasts'
-import { formatPriceKzt } from './utils/format'
+import { useToastDispatch } from './composables/useToastDispatch'
 const authReady = ref(false)
 
 onMounted(async () => {
@@ -143,62 +142,27 @@ function selectTab(t) {
 
 // ---- SSE: in-app push для событий когда юзер сидит в мини-аппе ----
 // Telegram не показывает push-уведомления когда юзер «в чате с ботом»
-// (а мини-апп открытый — это и есть «в чате»). Поэтому самим рисуем
-// toast'ы при изменении статуса оффера.
-//
-// Кроме toast — рефрешим активную вкладку, чтобы данные в UI совпадали
-// с тем что бэк только что сообщил. Polling 60с остаётся safety-net'ом
-// на случай если SSE-соединение лопнуло.
-function handleEvent(e) {
-  const priceStr = e.price ? formatPriceKzt(e.price) : ''
-  const title = e.bouquet_title ? `«${e.bouquet_title}»` : ''
-
-  // Все наши event'ы относятся к Сделкам — тап по тосту туда и ведёт.
-  const toDeals = () => { activeTab.value = 'deals' }
-
-  // Цвет тоста (kind → background) уже несёт статус-сигнал:
-  // зелёный=success, красный=err, бордо=warn, чёрный=info. Эмодзи в тексте
-  // дублируют это семантически — убраны.
-  //
-  // Формат: «<действие> · <цена>\n<название>».
-  // Первая строка короткая и предсказуемая, вторая — название букета,
-  // которое может быть длинным; на узком экране оно перенесётся уже само
-  // не ломая первую строку (см. white-space: pre-line в Toast.vue).
-  switch (e.type) {
-    case 'offer.created':
-      pushToast(`Новое предложение · ${priceStr}\n${title}`, { kind: 'info', action: toDeals })
-      break
-    case 'offer.accepted':
-      pushToast(`Принято · ${priceStr}\n${title}`, { kind: 'success', ttl: 6000, action: toDeals })
-      break
-    case 'offer.rejected':
-      pushToast(`Отклонено · ${priceStr}\n${title}`, { kind: 'err', action: toDeals })
-      break
-    case 'offer.countered':
-      pushToast(`Встречное · ${priceStr}\n${title}`, { kind: 'warn', action: toDeals })
-      break
-    case 'offer.cancelled':
-      pushToast(`Сделка отменена · ${priceStr}\n${title}`, { kind: 'warn', action: toDeals })
-      break
-    case 'offer.expired':
-      pushToast(`Букет ушёл другому · ${priceStr}\n${title}`, { kind: 'err', action: toDeals })
-      break
-    default:
-      return // unknown event — ignore
-  }
+// (а мини-апп открытый — это и есть «в чате»). Поэтому при event'е
+// рисуем toast (через useToastDispatch) и рефрешим активную вкладку
+// чтобы UI был консистентен с тем что бэк только что сообщил.
+// Polling 60с остаётся safety-net'ом на случай если SSE лопнуло.
+const refreshOpenTabs = () => {
   gridRef.value?.refresh?.()
   dealsRef.value?.refresh?.()
   profileRef.value?.refresh?.()
+}
+const dispatchToast = useToastDispatch({
+  onToastTap: () => { activeTab.value = 'deals' },
+})
+function handleEvent(e) {
+  dispatchToast(e)
+  refreshOpenTabs()
 }
 
 // onConnect: после установки SSE рефрешим всё что открыто — лечит
 // init-race (между fetch'ем при mount и подпиской могло проскочить
 // событие, которое навсегда потеряно).
-useEventStream(handleEvent, () => {
-  gridRef.value?.refresh?.()
-  dealsRef.value?.refresh?.()
-  profileRef.value?.refresh?.()
-})
+useEventStream(handleEvent, refreshOpenTabs)
 </script>
 
 <template>
