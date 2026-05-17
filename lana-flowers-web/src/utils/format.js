@@ -48,16 +48,17 @@ function pluralRu(n, forms) {
   return forms[2]
 }
 
-/** Готовая фраза «истекает через X» / «истекает скоро» / «истёк».
- *  Для подстановки в UI напрямую — caller'у не надо городить префикс. */
+/** Короткая фраза «через 5 ч» / «через 23 мин» / «через 2 дня» / «скоро» / «истёк».
+ *  Идёт inline в meta-строку оффера — поэтому без избыточного «истекает».
+ *  Минуты/часы — аббревиатурой (мин/ч), дни — с полным склонением. */
 export function formatRemaining(deadlineMs) {
   const diff = deadlineMs - Date.now()
   if (diff <= 0) return 'истёк'
   const min = Math.floor(diff / 60000)
-  if (min < 5) return 'истекает скоро'
-  if (min < 60) return `истекает через ${min} ${pluralRu(min, ['минуту', 'минуты', 'минут'])}`
+  if (min < 5) return 'скоро'
+  if (min < 60) return `через ${min} мин`
   const hours = Math.floor(min / 60)
-  if (hours < 24) return `истекает через ${hours} ${pluralRu(hours, ['час', 'часа', 'часов'])}`
+  if (hours < 24) return `через ${hours} ч`
   const days = Math.floor(hours / 24)
-  return `истекает через ${days} ${pluralRu(days, ['день', 'дня', 'дней'])}`
+  return `через ${days} ${pluralRu(days, ['день', 'дня', 'дней'])}`
 }

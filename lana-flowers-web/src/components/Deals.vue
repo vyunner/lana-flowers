@@ -299,21 +299,19 @@ function goCatalog() {
                 ></div>
                 <div class="card-info">
                   <div class="card-title">{{ o.bouquet.title }}</div>
-                  <div class="card-sub">От {{ cpName(o) }}</div>
-                  <div class="card-prices">
-                    Предложение: <b>{{ formatPrice(o.price) }} ₸</b>
-                    <span
-                      v-if="priceDeltaPct(o) != null"
-                      :class="['delta', priceDeltaPct(o) > 0 ? 'down' : 'up']"
-                    >
-                      ({{ priceDeltaPct(o) > 0 ? '−' : '+'
-                      }}{{ Math.abs(priceDeltaPct(o)) }}%)
-                    </span>
+                  <div class="card-meta">
+                    От {{ cpName(o) }}
+                    <template v-if="expiresLabel(o)">
+                      <span class="sep">·</span>
+                      <span :class="['inline-time', expiresUrgency(o)]">{{ expiresLabel(o) }}</span>
+                    </template>
                   </div>
-                  <div class="card-prices muted">
-                    Ваша цена: {{ formatPrice(o.bouquet.price) }} ₸
+                  <div
+                    v-if="priceDeltaPct(o) != null"
+                    :class="['delta-line', priceDeltaPct(o) > 0 ? 'down' : 'up']"
+                  >
+                    {{ priceDeltaPct(o) > 0 ? '−' : '+' }}{{ Math.abs(priceDeltaPct(o)) }}% от вашей цены ({{ formatPrice(o.bouquet.price) }} ₸)
                   </div>
-                  <div :class="['expires', expiresUrgency(o)]">{{ expiresLabel(o) }}</div>
                 </div>
               </div>
               <button
@@ -325,7 +323,7 @@ function goCatalog() {
               </button>
               <div class="links">
                 <button class="link" type="button" @click="openCounter(o)">
-                  Предложить свою цену
+                  Предложить свою
                 </button>
                 <span class="dot">·</span>
                 <button
@@ -353,7 +351,7 @@ function goCatalog() {
                 ></div>
                 <div class="card-info">
                   <div class="card-title">{{ o.bouquet.title }}</div>
-                  <div class="card-sub">
+                  <div class="card-meta">
                     Договорились с {{ cpName(o) }} —
                     <b>{{ formatPrice(o.price) }} ₸</b>
                   </div>
@@ -388,11 +386,14 @@ function goCatalog() {
                 ></div>
                 <div class="card-info">
                   <div class="card-title">{{ o.bouquet.title }}</div>
-                  <div class="card-sub">
+                  <div class="card-meta">
                     Вы предложили <b>{{ formatPrice(o.price) }} ₸</b>
+                    <template v-if="expiresLabel(o)">
+                      <span class="sep">·</span>
+                      <span :class="['inline-time', expiresUrgency(o)]">{{ expiresLabel(o) }}</span>
+                    </template>
                   </div>
                   <div class="hint">{{ cpName(o) }} ещё думает</div>
-                  <div :class="['expires', expiresUrgency(o)]">{{ expiresLabel(o) }}</div>
                 </div>
               </div>
               <div class="links">
@@ -604,61 +605,55 @@ function goCatalog() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.card-sub {
+/* Meta-строка: «От Иван · через 1 ч» / «Вы предложили 9 500 ₸ · через 1 ч» —
+   всё, что нужно увидеть с первого взгляда, в одну строку под названием. */
+.card-meta {
   font-size: 13px;
   color: var(--text-secondary);
-  margin-top: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin-top: 3px;
+  line-height: 1.35;
 }
-.card-prices {
-  font-size: 14px;
-  margin-top: 6px;
+.card-meta b {
   color: var(--text);
-}
-.card-prices.muted {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin-top: 1px;
-}
-.card-prices b {
   font-weight: 700;
 }
-.delta {
+.card-meta .sep {
+  margin: 0 6px;
+  color: var(--text-muted);
+}
+
+/* Inline-таймер истечения (часть .card-meta). Цвет = срочность. */
+.inline-time {
+  color: var(--text-muted);
+}
+.inline-time.warn {
+  color: var(--accent);
+  font-weight: 600;
+}
+.inline-time.critical {
+  color: #d6553f;
+  font-weight: 700;
+}
+
+/* Дельта vs запрошенной цены — показывается ТОЛЬКО когда есть разница.
+   Скидку (покупатель просит меньше) — красным, надбавку — зелёным. */
+.delta-line {
   font-size: 12px;
   font-weight: 600;
-  margin-left: 4px;
+  margin-top: 4px;
 }
-.delta.down {
+.delta-line.down {
   color: #d6553f;
 }
-.delta.up {
+.delta-line.up {
   color: #2c8a52;
 }
+
 .hint {
   font-size: 13px;
   color: var(--text-muted);
   margin-top: 4px;
   font-style: italic;
-}
-
-/* Таймер истечения pending-оффера. Цвет = срочность. */
-.expires {
-  font-size: 12px;
-  margin-top: 6px;
-  color: var(--text-muted);
-}
-.expires:empty {
-  display: none;
-}
-.expires.warn {
-  color: var(--accent);
-  font-weight: 600;
-}
-.expires.critical {
-  color: #d6553f;
-  font-weight: 700;
 }
 
 /* ---- CTA primary внутри карточки ---- */
